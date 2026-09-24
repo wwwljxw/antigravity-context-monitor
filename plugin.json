@@ -1,0 +1,6 @@
+﻿{
+  "name": "context-monitor",
+  "description": "Antigravity 2.0 上下文容量动态监控与可视化进度条插件 (Context Window & Token Capacity Monitor with Generative UI)",
+  "version": "1.0.0",
+  "author": "Antigravity Pair Programmer"
+}
