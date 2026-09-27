@@ -99,12 +99,12 @@ A lightweight, real-time context window capacity and token usage monitor custom-
    ```bash
    git clone https://github.com/wwwljxw/antigravity-context-monitor.git
    ```
-2. 双击项目根目录下的 **`一键安装.bat`**（或直接运行 `python install.py`）。
+2. 双击项目根目录下的 **`install.bat`**（或直接运行 `python install.py`）。
 3. 打开或重启 **Antigravity 2.0**。
 4. 输入框右下角即可看到呼吸跳动的小胶囊，鼠标悬停即可浮出仪表盘！
 
 #### 卸载步骤
-- 双击 **`一键卸载.bat`**（或运行 `python uninstall.py`）即可一键彻底停止进程并清理所有文件和自启项。
+- 双击 **`uninstall.bat`**（或运行 `python uninstall.py`）即可一键彻底停止进程并清理所有文件和自启项。
 
 ---
 
