@@ -163,7 +163,11 @@ def compute_conv_stats(conv_id):
 SETUP_JS = """
 (() => {
     window.__mountAntigravityGauge = function() {
-        let micBtn = document.querySelector('[aria-label="Record voice memo"]');
+        let micBtn = document.querySelector('[data-tooltip-id*="record"]') || 
+                     document.querySelector('[aria-label*="Record"]') || 
+                     document.querySelector('[aria-label*="录音"]') ||
+                     document.querySelector('[aria-label*="取消生成"]') || 
+                     document.querySelector('[aria-label*="Stop"]');
         if (!micBtn) return false;
         let micContainer = micBtn.closest('.flex.items-center');
         if (!micContainer || !micContainer.parentElement) return false;
@@ -355,7 +359,11 @@ SETUP_JS = """
     if (!window.__agGaugeObserver) {
         window.__agGaugeObserver = new MutationObserver(() => {
             let root = document.getElementById("antigravity-context-gauge-root");
-            let micBtn = document.querySelector('[aria-label="Record voice memo"]');
+            let micBtn = document.querySelector('[data-tooltip-id*="record"]') || 
+                         document.querySelector('[aria-label*="Record"]') || 
+                         document.querySelector('[aria-label*="录音"]') ||
+                         document.querySelector('[aria-label*="取消生成"]') || 
+                         document.querySelector('[aria-label*="Stop"]');
             if (micBtn && (!root || !document.body.contains(root))) {
                 window.__mountAntigravityGauge();
             }
