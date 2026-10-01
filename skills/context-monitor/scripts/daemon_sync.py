@@ -163,17 +163,32 @@ def compute_conv_stats(conv_id):
 SETUP_JS = """
 (() => {
     window.__mountAntigravityGauge = function() {
-        let micBtn = document.querySelector('[data-tooltip-id*="record"]') || 
-                     document.querySelector('[aria-label*="Record"]') || 
-                     document.querySelector('[aria-label*="录音"]') ||
-                     document.querySelector('[aria-label*="取消生成"]') || 
-                     document.querySelector('[aria-label*="Stop"]');
-        if (!micBtn) return false;
+        // 1. Strictly purge any root that was erroneously mounted in sidebar
+        document.querySelectorAll('#antigravity-context-gauge-root').forEach(el => {
+            if (el.closest('nav, aside, [class*="sidebar"]')) el.remove();
+        });
+
+        // 2. Locate mic/action button STRICTLY inside the main chat input bar (never in sidebar)
+        let micBtn = document.querySelector('button[data-tooltip-id="input-send-button-record-tooltip"]') ||
+                     document.querySelector('button[data-tooltip-id="input-send-button-cancel-tooltip"]');
+        
+        if (!micBtn) {
+            let candidates = [...document.querySelectorAll('button')].filter(b => {
+                if (b.closest('nav, aside, [class*="sidebar"]')) return false;
+                let tip = b.getAttribute('data-tooltip-id') || '';
+                let aria = b.getAttribute('aria-label') || '';
+                return tip.includes('record') || aria.includes('录音') || aria.includes('Record');
+            });
+            if (candidates.length > 0) micBtn = candidates[candidates.length - 1];
+        }
+
+        if (!micBtn || micBtn.closest('nav, aside, [class*="sidebar"]')) return false;
+
         let micContainer = micBtn.closest('.flex.items-center');
-        if (!micContainer || !micContainer.parentElement) return false;
+        if (!micContainer || !micContainer.parentElement || micContainer.closest('nav, aside, [class*="sidebar"]')) return false;
 
         let root = document.getElementById("antigravity-context-gauge-root");
-        if (!root || !document.body.contains(root)) {
+        if (!root || !document.body.contains(root) || root.parentElement !== micContainer.parentElement) {
             if (root) root.remove();
             root = document.createElement("div");
             root.id = "antigravity-context-gauge-root";
@@ -359,12 +374,13 @@ SETUP_JS = """
     if (!window.__agGaugeObserver) {
         window.__agGaugeObserver = new MutationObserver(() => {
             let root = document.getElementById("antigravity-context-gauge-root");
-            let micBtn = document.querySelector('[data-tooltip-id*="record"]') || 
-                         document.querySelector('[aria-label*="Record"]') || 
-                         document.querySelector('[aria-label*="录音"]') ||
-                         document.querySelector('[aria-label*="取消生成"]') || 
-                         document.querySelector('[aria-label*="Stop"]');
-            if (micBtn && (!root || !document.body.contains(root))) {
+            if (root && root.closest('nav, aside, [class*="sidebar"]')) {
+                root.remove();
+                root = null;
+            }
+            let micBtn = document.querySelector('button[data-tooltip-id="input-send-button-record-tooltip"]') ||
+                         document.querySelector('button[data-tooltip-id="input-send-button-cancel-tooltip"]');
+            if (micBtn && !micBtn.closest('nav, aside, [class*="sidebar"]') && (!root || !document.body.contains(root))) {
                 window.__mountAntigravityGauge();
             }
         });
