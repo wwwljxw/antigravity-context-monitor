@@ -33,9 +33,9 @@ def main():
 
     print("=" * 65)
     if zh:
-        print("  [-] Antigravity 2.0 上下文容量监控插件 - 卸载程序")
+        print("  [-] Antigravity 上下文监控插件 (Context Monitor) - 卸载程序")
     else:
-        print("  [-] Antigravity 2.0 Context Monitor Plugin - Uninstaller")
+        print("  [-] Antigravity Context Monitor - Uninstaller")
     print("=" * 65)
     print()
 

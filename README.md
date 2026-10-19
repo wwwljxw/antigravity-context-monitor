@@ -1,5 +1,5 @@
-# 🧠 Antigravity Context Capacity Monitor
-### Google Antigravity 2.0 上下文容量动态监控与可视化仪表盘插件
+# 🧠 Antigravity Context Monitor
+### Google Antigravity 上下文监控插件
 
 <p align="center">
   <img src="https://img.shields.io/badge/Antigravity-2.0%20Desktop-blue?style=flat-square" alt="Antigravity 2.0" />
@@ -23,7 +23,7 @@
 <a name="english"></a>
 ## English
 
-A lightweight, real-time context window capacity and token usage monitor custom-built for **Google Antigravity 2.0 Desktop**. Seamlessly embeds right into the bottom input toolbar next to the microphone button, expanding into a floating dashboard card on hover.
+A lightweight, real-time context window and token usage monitor custom-built for **Google Antigravity 2.0 Desktop**. Seamlessly embeds right into the bottom input toolbar next to the microphone button, expanding into a floating dashboard card on hover.
 
 ### 🌟 Key Features
 
@@ -67,7 +67,7 @@ A lightweight, real-time context window capacity and token usage monitor custom-
 <a name="chinese"></a>
 ## 中文说明
 
-为 **Google Antigravity 2.0 桌面客户端** 定制的轻量级实时上下文容量监控插件。通过本地调试管道与 DOM 监听机制，无侵入式地内嵌至输入框右下角。
+为 **Google Antigravity 2.0 桌面客户端** 定制的轻量级实时上下文监控插件。通过本地调试管道与 DOM 监听机制，无侵入式地内嵌至输入框右下角。
 
 ### 🌟 核心功能
 

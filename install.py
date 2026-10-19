@@ -34,9 +34,9 @@ def main():
 
     print("=" * 65)
     if zh:
-        print("  [+] Antigravity 2.0 上下文容量监控插件 - 一键安装程序")
+        print("  [+] Antigravity 上下文监控插件 (Context Monitor) - 一键安装程序")
     else:
-        print("  [+] Antigravity 2.0 Context Monitor Plugin - One-Click Installer")
+        print("  [+] Antigravity Context Monitor - One-Click Installer")
     print("=" * 65)
     print()
 
@@ -159,11 +159,11 @@ def main():
     print("=" * 65)
     if zh:
         print("  [OK] 安装完成！")
-        print("  打开或重启 Antigravity 2.0，输入框右侧即可看到上下文容量监控胶囊。")
+        print("  打开或重启 Antigravity 2.0，输入框右侧即可看到上下文监控胶囊。")
         print("  鼠标悬停在百分比上方即可弹出详细仪表盘卡片。")
     else:
         print("  [OK] Installation Complete!")
-        print("  Open or restart Antigravity 2.0 to see the context capacity gauge in")
+        print("  Open or restart Antigravity 2.0 to see the context monitor gauge in")
         print("  the bottom right of the input box. Hover over the badge to expand!")
     print("=" * 65)
 

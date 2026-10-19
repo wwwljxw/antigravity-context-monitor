@@ -175,7 +175,7 @@ def compute_conv_stats(conv_id):
         "badge_color": badge_color,
         "i18n": {
             "zh": {
-                "title": "会话上下文容量",
+                "title": "上下文监控",
                 "consumed_label": "已消耗:",
                 "remaining_label": "剩余空间",
                 "steps_label": "累计交互",
@@ -187,7 +187,7 @@ def compute_conv_stats(conv_id):
                 "max_suffix": "1M 上限"
             },
             "en": {
-                "title": "Context Capacity",
+                "title": "Context Monitor",
                 "consumed_label": "Used:",
                 "remaining_label": "Remaining",
                 "steps_label": "Steps",
@@ -255,7 +255,7 @@ SETUP_JS = """
             if (popup) popup.remove();
             
             const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
-            const initTitle = isZh ? "会话上下文容量" : "Context Capacity";
+            const initTitle = isZh ? "上下文监控" : "Context Monitor";
             const initConsumed = isZh ? "已消耗:" : "Used:";
             const initRemaining = isZh ? "剩余空间" : "Remaining";
             const initSteps = isZh ? "累计交互" : "Steps";

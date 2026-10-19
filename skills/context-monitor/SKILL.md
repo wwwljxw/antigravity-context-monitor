@@ -3,7 +3,7 @@ name: context-monitor
 description: Monitor conversation context window capacity, token usage, and render a real-time progress bar dashboard in Antigravity 2.0. Use this skill whenever the user asks "查看上下文", "显示容量进度条", "token使用了多少", "会话容量状态", "context status", "check context", or wants to know if the session is nearing the limit.
 ---
 
-# Context Capacity Monitor for Antigravity 2.0
+# Antigravity Context Monitor (上下文监控)
 
 当用户询问当前会话的上下文容量、Token 消耗、进度条或会话状态时，执行此技能直接在对话框气泡内输出实时的可视化进度条。
 

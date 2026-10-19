@@ -147,7 +147,7 @@ def main():
     steps_display_en = f"{steps} steps (Active: {active_steps})" if is_compacted else f"{steps} steps"
     
     if zh:
-        markdown_card = f"""> ### 🧠 上下文容量实时监控 (100万 Token 上限)
+        markdown_card = f"""> ### 🧠 上下文监控 (100万 Token 上限)
 > `{progress_bar}` **`{percentage}%`** · {health_badge}
 > 
 > | 📊 活跃上下文 | 🚀 剩余空间 | 🔢 交互步数 | ⚙️ 工具调用 | 💬 对话轮数 |
@@ -156,7 +156,7 @@ def main():
 > 
 > 💡 *建议：{advice}*"""
     else:
-        markdown_card = f"""> ### 🧠 Context Capacity Live Monitor (1M Token Max)
+        markdown_card = f"""> ### 🧠 Context Monitor (1M Token Max)
 > `{progress_bar}` **`{percentage}%`** · {health_badge}
 > 
 > | 📊 Active Context | 🚀 Remaining | 🔢 Steps | ⚙️ Tool Calls | 💬 Turns |
