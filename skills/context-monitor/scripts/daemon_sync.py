@@ -61,12 +61,16 @@ def compute_conv_stats(conv_id):
     if not conv_id or conv_id == "new":
         pct = 0.0
         steps = 0
+        active_steps = 0
+        is_compacted = False
         tokens = 0
     else:
         p = BRAIN_DIR / conv_id / ".system_generated" / "logs" / "transcript.jsonl"
         if not p.exists():
             pct = 0.0
             steps = 0
+            active_steps = 0
+            is_compacted = False
             tokens = 0
         else:
             mtime = p.stat().st_mtime
@@ -75,19 +79,53 @@ def compute_conv_stats(conv_id):
                 return cached["stats"]
                 
             steps = 0
-            tokens = 5000
+            tokens = 0
+            is_compacted = False
+            active_steps = 0
             try:
                 with open(p, "r", encoding="utf-8", errors="ignore") as f:
-                    for line in f:
-                        steps += 1
-                        try:
-                            data = json.loads(line)
-                            tokens += estimate_tokens(str(data.get("content",""))) + estimate_tokens(str(data.get("thinking",""))) + estimate_tokens(str(data.get("tool_calls","")))
-                        except:
-                            pass
+                    lines = [json.loads(line) for line in f if line.strip()]
+                
+                steps = len(lines)
+                
+                # 寻找最近的 CHECKPOINT 截断点（/compact 或系统自动压缩产生）
+                latest_cp_idx = -1
+                for i in range(len(lines) - 1, -1, -1):
+                    if lines[i].get("type") == "CHECKPOINT":
+                        latest_cp_idx = i
+                        break
+                
+                is_compacted = (latest_cp_idx != -1)
+                active_start_idx = latest_cp_idx if is_compacted else 0
+                active_steps = steps - active_start_idx
+                
+                # 检查在活跃上下文区间中是否存在真实的 PLANNER_RESPONSE（包含模型实际消耗 Token）
+                last_pr_idx = -1
+                for i in range(len(lines) - 1, active_start_idx - 1, -1):
+                    if "input_tokens" in lines[i]:
+                        last_pr_idx = i
+                        break
+                        
+                BASE_SYSTEM_TOKENS = 18000  # 系统 Prompt + 工具规则常驻基线
+                
+                if last_pr_idx != -1:
+                    pr_data = lines[last_pr_idx]
+                    tokens = pr_data.get("input_tokens", 0) + pr_data.get("cache_read_tokens", 0)
+                    for i in range(last_pr_idx + 1, len(lines)):
+                        step_data = lines[i]
+                        tokens += (estimate_tokens(str(step_data.get("content", ""))) +
+                                   estimate_tokens(str(step_data.get("thinking", ""))) +
+                                   estimate_tokens(str(step_data.get("tool_calls", ""))))
+                else:
+                    tokens = BASE_SYSTEM_TOKENS
+                    for i in range(active_start_idx, len(lines)):
+                        step_data = lines[i]
+                        tokens += (estimate_tokens(str(step_data.get("content", ""))) +
+                                   estimate_tokens(str(step_data.get("thinking", ""))) +
+                                   estimate_tokens(str(step_data.get("tool_calls", ""))))
             except Exception:
                 pass
-            pct = round((tokens / 1_000_000) * 100, 2)
+            pct = min(100.0, round((tokens / 1_000_000) * 100, 2))
             
     # Calculate health levels and compact bilingual strings
     if not conv_id or conv_id == "new":
@@ -104,8 +142,12 @@ def compute_conv_stats(conv_id):
         health_en = "🟢 Optimal"
         model_health_zh = "极佳"
         model_health_en = "Optimal"
-        advice_zh = f"当前仅占用 {pct}%，余量充足，无需压缩。"
-        advice_en = f"Only {pct}% used. Ample headroom, no compression needed."
+        if is_compacted:
+            advice_zh = f"已完成上下文压缩，当前仅占用 {pct}%，余量充足。"
+            advice_en = f"Context compacted. Currently using {pct}% with ample headroom."
+        else:
+            advice_zh = f"当前仅占用 {pct}%，余量充足，无需压缩。"
+            advice_en = f"Only {pct}% used. Ample headroom, no compression needed."
     elif pct < 85:
         badge_color = "amber"
         health_zh = "🟡 容量适中"
@@ -126,6 +168,8 @@ def compute_conv_stats(conv_id):
     res = {
         "conv_id": conv_id,
         "steps": steps,
+        "active_steps": active_steps,
+        "is_compacted": is_compacted,
         "tokens": tokens,
         "percentage": pct,
         "badge_color": badge_color,
@@ -348,6 +392,13 @@ SETUP_JS = """
         if (popSteps) {
             let unit = t.steps_unit ? " " + t.steps_unit : "";
             popSteps.innerText = Number(stats.steps).toLocaleString() + unit;
+            if (stats.is_compacted) {
+                popSteps.title = (navigator.language || '').toLowerCase().startsWith('zh') ? 
+                    `累计 ${stats.steps} 步（压缩后活跃: ${stats.active_steps} 步）` : 
+                    `Total ${stats.steps} steps (Active: ${stats.active_steps})`;
+            } else {
+                popSteps.title = "";
+            }
         }
 
         let popHealthLabel = document.getElementById("ag-pop-health-label");

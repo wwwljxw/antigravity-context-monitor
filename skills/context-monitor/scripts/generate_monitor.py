@@ -62,50 +62,78 @@ def main():
     conv_dir, transcript_path = active
     
     steps = 0
-    total_tokens = 5000  # Baseline system prompt + tools framing
+    total_tokens = 0
     user_msgs = 0
     model_msgs = 0
     tool_calls = 0
+    is_compacted = False
+    active_steps = 0
     
     try:
         with open(transcript_path, "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                steps += 1
-                try:
-                    data = json.loads(line)
-                    msg_type = data.get("type", "")
-                    if msg_type == "USER_INPUT":
-                        user_msgs += 1
-                    elif msg_type == "PLANNER_RESPONSE":
-                        model_msgs += 1
-                    
-                    content = str(data.get("content", ""))
-                    thinking = str(data.get("thinking", ""))
-                    t_calls = str(data.get("tool_calls", ""))
-                    if t_calls and t_calls != "[]":
-                        tool_calls += 1
-                        
-                    total_tokens += estimate_tokens(content)
-                    total_tokens += estimate_tokens(thinking)
-                    total_tokens += estimate_tokens(t_calls)
-                except Exception:
-                    pass
+            lines = [json.loads(line) for line in f if line.strip()]
+            
+        steps = len(lines)
+        for data in lines:
+            msg_type = data.get("type", "")
+            if msg_type == "USER_INPUT":
+                user_msgs += 1
+            elif msg_type == "PLANNER_RESPONSE":
+                model_msgs += 1
+            t_calls = str(data.get("tool_calls", ""))
+            if t_calls and t_calls != "[]":
+                tool_calls += 1
+                
+        # 寻找最近的 CHECKPOINT
+        latest_cp_idx = -1
+        for i in range(len(lines) - 1, -1, -1):
+            if lines[i].get("type") == "CHECKPOINT":
+                latest_cp_idx = i
+                break
+                
+        is_compacted = (latest_cp_idx != -1)
+        active_start_idx = latest_cp_idx if is_compacted else 0
+        active_steps = steps - active_start_idx
+        
+        last_pr_idx = -1
+        for i in range(len(lines) - 1, active_start_idx - 1, -1):
+            if "input_tokens" in lines[i]:
+                last_pr_idx = i
+                break
+                
+        BASE_SYSTEM_TOKENS = 18000
+        
+        if last_pr_idx != -1:
+            pr_data = lines[last_pr_idx]
+            total_tokens = pr_data.get("input_tokens", 0) + pr_data.get("cache_read_tokens", 0)
+            for i in range(last_pr_idx + 1, len(lines)):
+                step_data = lines[i]
+                total_tokens += (estimate_tokens(str(step_data.get("content", ""))) +
+                                 estimate_tokens(str(step_data.get("thinking", ""))) +
+                                 estimate_tokens(str(step_data.get("tool_calls", ""))))
+        else:
+            total_tokens = BASE_SYSTEM_TOKENS
+            for i in range(active_start_idx, len(lines)):
+                step_data = lines[i]
+                total_tokens += (estimate_tokens(str(step_data.get("content", ""))) +
+                                 estimate_tokens(str(step_data.get("thinking", ""))) +
+                                 estimate_tokens(str(step_data.get("tool_calls", ""))))
     except Exception as e:
         print(json.dumps({"error": str(e)}))
         return
 
     max_tokens = 1_000_000
-    percentage = round((total_tokens / max_tokens) * 100, 2)
+    percentage = min(100.0, round((total_tokens / max_tokens) * 100, 2))
     remaining_tokens = max(0, max_tokens - total_tokens)
     
     zh = is_chinese()
     
     if percentage < 60:
         health_badge = "🟢 极度充沛 (健康)" if zh else "🟢 Highly Optimal (Healthy)"
-        advice = "容量非常健康，可继续进行复杂任务与长代码编写。" if zh else "Capacity is optimal. Safe for extensive code generations and multi-step tasks."
+        if is_compacted:
+            advice = "已完成上下文压缩，当前空间极度充裕，可继续进行复杂任务与长代码编写。" if zh else "Context compacted. Capacity is optimal for extensive tasks."
+        else:
+            advice = "容量非常健康，可继续进行复杂任务与长代码编写。" if zh else "Capacity is optimal. Safe for extensive code generations and multi-step tasks."
     elif percentage < 85:
         health_badge = "🟡 容量适中 (留意)" if zh else "🟡 Moderate Load (Notice)"
         advice = "会话轮次较多，当前阶段完成后可考虑新开会话。" if zh else "Session turns accumulating. Consider summarizing once current goal is reached."
@@ -115,28 +143,33 @@ def main():
         
     progress_bar = render_ascii_bar(percentage, width=28)
     
+    steps_display = f"{steps} 步 (压缩后活跃: {active_steps} 步)" if is_compacted else f"{steps} 步"
+    steps_display_en = f"{steps} steps (Active: {active_steps})" if is_compacted else f"{steps} steps"
+    
     if zh:
         markdown_card = f"""> ### 🧠 上下文容量实时监控 (100万 Token 上限)
 > `{progress_bar}` **`{percentage}%`** · {health_badge}
 > 
-> | 📊 预估消耗 | 🚀 剩余空间 | 🔢 累计步数 | ⚙️ 工具调用 | 💬 对话轮数 |
+> | 📊 活跃上下文 | 🚀 剩余空间 | 🔢 交互步数 | ⚙️ 工具调用 | 💬 对话轮数 |
 > | :--- | :--- | :--- | :--- | :--- |
-> | **~{total_tokens:,}** | **> {int(remaining_tokens/1000)}k** | **{steps}** 步 | **{tool_calls}** 次 | **{user_msgs}** 轮 |
+> | **~{total_tokens:,}** | **> {int(remaining_tokens/1000)}k** | **{steps_display}** | **{tool_calls}** 次 | **{user_msgs}** 轮 |
 > 
 > 💡 *建议：{advice}*"""
     else:
         markdown_card = f"""> ### 🧠 Context Capacity Live Monitor (1M Token Max)
 > `{progress_bar}` **`{percentage}%`** · {health_badge}
 > 
-> | 📊 Consumed | 🚀 Remaining | 🔢 Steps | ⚙️ Tool Calls | 💬 Turns |
+> | 📊 Active Context | 🚀 Remaining | 🔢 Steps | ⚙️ Tool Calls | 💬 Turns |
 > | :--- | :--- | :--- | :--- | :--- |
-> | **~{total_tokens:,}** | **> {int(remaining_tokens/1000)}k** | **{steps}** steps | **{tool_calls}** calls | **{user_msgs}** turns |
+> | **~{total_tokens:,}** | **> {int(remaining_tokens/1000)}k** | **{steps_display_en}** | **{tool_calls}** calls | **{user_msgs}** turns |
 > 
 > 💡 *Advice: {advice}*"""
 
     result = {
         "status": "success",
         "steps": steps,
+        "active_steps": active_steps,
+        "is_compacted": is_compacted,
         "tokens": total_tokens,
         "percentage": percentage,
         "health_badge": health_badge,
