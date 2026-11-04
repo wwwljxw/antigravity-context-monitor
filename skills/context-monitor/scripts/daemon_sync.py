@@ -37,7 +37,8 @@ if hasattr(sys.stdout, 'reconfigure'):
 LOCK_PORT = 38291
 try:
     _lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    _lock_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
+        _lock_socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
     _lock_socket.bind(('127.0.0.1', LOCK_PORT))
     _lock_socket.listen(1)
     log("Acquired single-instance lock on port 38291")
@@ -453,25 +454,45 @@ def get_active_target():
         port = int(lines[0])
         req = urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=2)
         targets = json.loads(req.read().decode("utf-8"))
-        pages = [t for t in targets if t.get("type") == "page" and not t.get("url", "").startswith("devtools://")]
-        if pages:
-            return pages[0]["webSocketDebuggerUrl"]
+        valid_pages = []
+        for t in targets:
+            if t.get("type") != "page":
+                continue
+            url = t.get("url", "")
+            if not url or url.startswith("devtools://") or url.startswith("data:") or url.startswith("chrome-extension://"):
+                continue
+            valid_pages.append(t)
+        
+        if not valid_pages:
+            return None
+
+        # Prioritize true Antigravity chat window
+        for p in valid_pages:
+            url = p.get("url", "")
+            title = p.get("title", "")
+            if "/c/" in url or "project=" in url or "Antigravity" in title:
+                return p["webSocketDebuggerUrl"]
+
+        return valid_pages[0]["webSocketDebuggerUrl"]
     except Exception as e:
         log(f"get_active_target error: {e}")
     return None
 
 async def cdp_eval(ws, expr, req_id):
-    await ws.send(json.dumps({
-        "id": req_id,
-        "method": "Runtime.evaluate",
-        "params": {"expression": expr, "returnByValue": True}
-    }))
-    start_t = time.time()
-    while time.time() - start_t < 4.0:
-        msg = await asyncio.wait_for(ws.recv(), timeout=4.0)
-        data = json.loads(msg)
-        if data.get("id") == req_id:
-            return data.get("result", {}).get("result", {}).get("value")
+    try:
+        await ws.send(json.dumps({
+            "id": req_id,
+            "method": "Runtime.evaluate",
+            "params": {"expression": expr, "returnByValue": True}
+        }))
+        start_t = time.time()
+        while time.time() - start_t < 4.0:
+            msg = await asyncio.wait_for(ws.recv(), timeout=4.0)
+            data = json.loads(msg)
+            if data.get("id") == req_id:
+                return data.get("result", {}).get("result", {}).get("value")
+    except Exception:
+        pass
     return None
 
 async def run_sync_loop(iterations=None):
@@ -494,6 +515,13 @@ async def run_sync_loop(iterations=None):
                 await cdp_eval(ws, SETUP_JS, req_counter)
                 
                 while True:
+                    # Periodically check if target has shifted to a better window
+                    if iter_count % 3 == 0:
+                        current_best = get_active_target()
+                        if current_best and current_best != ws_url:
+                            log(f"Active target shifted to {current_best}. Reconnecting...")
+                            break
+
                     # 2. Check if setup function still exists (detects full page navigation/refresh)
                     req_counter += 1
                     fn_exists = await cdp_eval(ws, "typeof window.__updateAntigravityGauge === 'function'", req_counter)
