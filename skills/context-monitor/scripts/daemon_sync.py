@@ -179,7 +179,8 @@ def compute_conv_stats(conv_id, model_name=None):
                 "title": "上下文监控",
                 "consumed_label": "已消耗:",
                 "remaining_label": "物理剩余",
-                "steps_label": "累计交互",
+                "steps_label": "交互步数",
+                "footer_title": "💡 压缩建议",
                 "health_label": "模型状态",
                 "steps_unit": "步",
                 "model_health": model_health_zh,
@@ -195,6 +196,7 @@ def compute_conv_stats(conv_id, model_name=None):
                 "consumed_label": "Used:",
                 "remaining_label": "Physical Left",
                 "steps_label": "Steps",
+                "footer_title": "💡 Advice",
                 "health_label": "Status",
                 "steps_unit": "",
                 "model_health": model_health_en,
@@ -237,11 +239,11 @@ SETUP_JS = """
         if (!micContainer || !micContainer.parentElement || micContainer.closest('nav, aside, [class*="sidebar"]')) return false;
 
         let root = document.getElementById("antigravity-context-gauge-root");
-        if (!root || !document.body.contains(root) || root.parentElement !== micContainer.parentElement || root.dataset.version !== "1.5.0") {
+        if (!root || !document.body.contains(root) || root.parentElement !== micContainer.parentElement || root.dataset.version !== "1.5.1") {
             if (root) root.remove();
             root = document.createElement("div");
             root.id = "antigravity-context-gauge-root";
-            root.dataset.version = "1.5.0";
+            root.dataset.version = "1.5.1";
             root.className = "relative flex items-center select-none mr-2";
             root.innerHTML = `
                 <button id="ag-ctx-badge-btn" type="button" class="group flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-all duration-150 cursor-pointer outline-none border border-neutral-200 dark:border-neutral-700 shadow-sm">
@@ -257,15 +259,14 @@ SETUP_JS = """
         }
 
         let popup = document.getElementById("ag-ctx-popup");
-        if (!popup || !document.body.contains(popup) || popup.dataset.version !== "1.5.0") {
+        if (!popup || !document.body.contains(popup) || popup.dataset.version !== "1.5.1") {
             if (popup) popup.remove();
             
             const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
             const initTitle = isZh ? "上下文监控" : "Context Monitor";
             const initConsumed = isZh ? "已消耗:" : "Used:";
-            const initRemaining = isZh ? "物理剩余" : "Physical Left";
-            const initSteps = isZh ? "累计交互" : "Steps";
-            const initHealth = isZh ? "模型状态" : "Status";
+            const initSteps = isZh ? "交互步数" : "Steps";
+            const initFooterTitle = isZh ? "💡 压缩建议" : "💡 Advice";
             const initStatus = isZh ? "🟢 极度充裕" : "🟢 Optimal";
             const initAdvice = isZh ? "全新空白会话，上下文容量 100% 充裕。" : "Brand new session. 100% context capacity available.";
             const initCats = [
@@ -291,7 +292,7 @@ SETUP_JS = """
 
             popup = document.createElement("div");
             popup.id = "ag-ctx-popup";
-            popup.dataset.version = "1.5.0";
+            popup.dataset.version = "1.5.1";
             popup.style.cssText = "position: fixed !important; width: 350px !important; min-width: 350px !important; max-width: 350px !important; box-sizing: border-box !important; z-index: 999999 !important; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity 0.18s ease, transform 0.18s ease;";
             popup.className = "p-4 rounded-2xl bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-[0_16px_48px_rgba(0,0,0,0.22)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.7)] border border-neutral-200 dark:border-neutral-800 opacity-0 pointer-events-none translate-y-2";
             popup.innerHTML = `
@@ -339,24 +340,14 @@ SETUP_JS = """
                     ${rowsHtml}
                 </div>
 
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:9px; padding-top:9px; border-top:1px solid rgba(150,150,150,0.15); text-align:center;">
-                    <div style="padding:6px 4px; border-radius:8px; background:rgba(150,150,150,0.06); border:1px solid rgba(150,150,150,0.12); overflow:hidden;">
-                        <div id="ag-pop-rem-label" style="font-size:9px; color:#888; white-space:nowrap;">${initRemaining}</div>
-                        <div id="ag-pop-rem" style="font-size:12px; font-weight:700; font-family:monospace; color:#10b981; margin-top:2px;">> 1000k</div>
+                <div id="ag-pop-footer" style="margin-top:9px; padding:8px 10px; border-radius:10px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; margin-bottom:5px; padding-bottom:5px; border-bottom:1px solid rgba(150,150,150,0.12);">
+                        <span id="ag-pop-footer-title" style="font-weight:600; color:#10b981;">${initFooterTitle}</span>
+                        <span style="font-family:monospace; color:#777; white-space:nowrap;">
+                            <span id="ag-pop-steps-label">${initSteps}</span>: <strong id="ag-pop-steps" style="color:var(--foreground, #111);">0</strong>
+                        </span>
                     </div>
-                    <div style="padding:6px 4px; border-radius:8px; background:rgba(150,150,150,0.06); border:1px solid rgba(150,150,150,0.12); overflow:hidden;">
-                        <div id="ag-pop-steps-label" style="font-size:9px; color:#888; white-space:nowrap;">${initSteps}</div>
-                        <div id="ag-pop-steps" style="font-size:12px; font-weight:700; font-family:monospace; color:var(--foreground, #222); margin-top:2px;">0</div>
-                    </div>
-                    <div style="padding:6px 4px; border-radius:8px; background:rgba(150,150,150,0.06); border:1px solid rgba(150,150,150,0.12); overflow:hidden;">
-                        <div id="ag-pop-health-label" style="font-size:9px; color:#888; white-space:nowrap;">${initHealth}</div>
-                        <div id="ag-pop-health-val" style="font-size:12px; font-weight:700; font-family:monospace; color:#6366f1; margin-top:2px;">Optimal</div>
-                    </div>
-                </div>
-
-                <div style="margin-top:9px; padding:7px 10px; border-radius:8px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); font-size:10px; line-height:1.45; display:flex; gap:6px; align-items:flex-start;">
-                    <span style="font-size:12px; flex-shrink:0;">💡</span>
-                    <span id="ag-pop-advice" style="color:var(--foreground, #111);">${initAdvice}</span>
+                    <div id="ag-pop-advice" style="font-size:10px; line-height:1.45; color:var(--foreground, #111);">${initAdvice}</div>
                 </div>
             `;
             document.body.appendChild(popup);
@@ -475,14 +466,6 @@ SETUP_JS = """
             if (compactRow) compactRow.style.display = "none";
         }
 
-        let popRemLabel = document.getElementById("ag-pop-rem-label");
-        if (popRemLabel && t.remaining_label) popRemLabel.innerText = t.remaining_label;
-
-        let popRem = document.getElementById("ag-pop-rem");
-        if (popRem) {
-            let maxT = stats.max_tokens || 1000000;
-            popRem.innerText = "> " + Math.max(0, Math.floor((maxT - stats.tokens) / 1000)) + "k";
-        }
         let tickMid = document.getElementById("ag-pop-tick-mid");
         let tickMax = document.getElementById("ag-pop-tick-max");
         if (tickMid && stats.tick_mid) tickMid.innerText = stats.tick_mid;
@@ -496,7 +479,7 @@ SETUP_JS = """
             let unit = t.steps_unit ? " " + t.steps_unit : "";
             popSteps.innerText = Number(stats.steps).toLocaleString() + unit;
             if (stats.is_compacted) {
-                popSteps.title = (navigator.language || '').toLowerCase().startsWith('zh') ? 
+                popSteps.title = isZh ? 
                     `累计 ${stats.steps} 步（压缩后活跃: ${stats.active_steps} 步）` : 
                     `Total ${stats.steps} steps (Active: ${stats.active_steps})`;
             } else {
@@ -504,14 +487,32 @@ SETUP_JS = """
             }
         }
 
-        let popHealthLabel = document.getElementById("ag-pop-health-label");
-        if (popHealthLabel && t.health_label) popHealthLabel.innerText = t.health_label;
-
-        let popHealthVal = document.getElementById("ag-pop-health-val");
-        if (popHealthVal && t.model_health) popHealthVal.innerText = t.model_health;
+        const toneMap = {
+            rose: { color: "#f43f5e", bg: "rgba(244,63,94,0.10)", border: "rgba(244,63,94,0.26)" },
+            amber: { color: "#f59e0b", bg: "rgba(245,158,11,0.10)", border: "rgba(245,158,11,0.26)" },
+            emerald: { color: "#10b981", bg: "rgba(16,185,129,0.08)", border: "rgba(16,185,129,0.22)" }
+        };
+        const tone = toneMap[stats.badge_color] || toneMap.emerald;
 
         let popBadge = document.getElementById("ag-pop-badge");
-        if (popBadge && t.health_badge) popBadge.innerText = t.health_badge;
+        if (popBadge && t.health_badge) {
+            popBadge.innerText = t.health_badge;
+            popBadge.style.color = tone.color;
+            popBadge.style.background = tone.bg;
+            popBadge.style.borderColor = tone.border;
+        }
+
+        let popFooter = document.getElementById("ag-pop-footer");
+        if (popFooter) {
+            popFooter.style.background = tone.bg;
+            popFooter.style.borderColor = tone.border;
+        }
+
+        let popFooterTitle = document.getElementById("ag-pop-footer-title");
+        if (popFooterTitle) {
+            if (t.footer_title) popFooterTitle.innerText = t.footer_title;
+            popFooterTitle.style.color = tone.color;
+        }
 
         let popAdvice = document.getElementById("ag-pop-advice");
         if (popAdvice && t.advice) popAdvice.innerText = t.advice;
