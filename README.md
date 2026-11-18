@@ -2,7 +2,7 @@
 ### Google Antigravity 上下文监控插件
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v1.4.0-purple?style=flat-square" alt="Version v1.4.0" />
+  <img src="https://img.shields.io/badge/Version-v1.5.0-purple?style=flat-square" alt="Version v1.5.0" />
   <img src="https://img.shields.io/badge/Antigravity-2.0%20Desktop-blue?style=flat-square" alt="Antigravity 2.0" />
   <img src="https://img.shields.io/badge/Language-Bilingual%20(ZH%20%7C%20EN)-emerald?style=flat-square" alt="Bilingual" />
   <img src="https://img.shields.io/badge/Python-3.9+-yellow?style=flat-square" alt="Python 3.9+" />
@@ -29,12 +29,11 @@ A lightweight, real-time context window and token usage monitor custom-built for
 ### 🌟 Key Features
 
 - **⚡ Native Input Bar Integration**: Injects seamlessly into the bottom input toolbar without modifying any Antigravity application binaries.
-- **🎨 350px Floating Dashboard (Hover to Expand)**:
-  - **Dynamic Model & Limit Detection**: Reads active model in real-time (e.g., `Gemini 4 Hydrogen High · 1M Max`, `Claude Opus 5.5 · 1M Max`, `GPT-OSS 120B · 128k Max`) and adapts the progress bar scale automatically.
-  - **Auto-Compact Threshold Marker**: Displays an amber marker on the progress bar showing Antigravity's actual Checkpointer auto-compaction trigger (`512k` / `256k` / `128k` / `80k`) and live remaining headroom before compaction.
-  - **Color-Coded Status Pulse**: 🟢 Optimal ｜ 🟡 Near Auto-Compact ｜ 🔴 Compact Soon.
-  - **3 Metric Blocks**: Physical remaining space, interaction steps, and model status.
-  - **Context Advice**: Timely guidance for summarizing or running `/compact`, plus in-chat Markdown cards via `generate_monitor.py` with `│` threshold markers.
+- **🎨 360px Floating Dashboard (Hover to Expand)**:
+  - **5-Category Real-Time Breakdown & Segmented Bar**: Visualizes exact token consumption across **System Prompt** (`#6366f1`), **Tools & Subagents** (`#10b981`), **Messages** (`#f59e0b`), **Connectors & MCP** (`#8b5cf6`), and **Skills** (`#ec4899`), calibrated against active transcript usage (`transcript_full.jsonl` + local rules/MCP/skill metadata).
+  - **Dynamic Model & Limit Detection**: Reads active model in real-time (e.g., `Gemini 4 Hydrogen High · 1M`, `Claude Opus 5.5 · 1M`, `GPT-OSS 120B · 128k`) and adapts the progress bar scale automatically.
+  - **Auto-Compact Threshold Marker**: Displays an amber marker pin on the segmented progress bar showing Antigravity's actual Checkpointer auto-compaction trigger (`512k` / `256k` / `128k` / `80k`) and live remaining headroom before compaction.
+  - **Streamlined Footer & Clear Typography**: Combines **Steps** count and color-coded compression advice (`🟢 Optimal` / `🟡 Near Limit` / `🔴 Compact Soon`) into a unified footer card with enlarged, high-contrast typography, plus in-chat Markdown cards via `generate_monitor.py` featuring category breakdowns and `│` threshold markers.
 
 #### Supported Model Limits & Auto-Compact Thresholds
 
@@ -83,12 +82,11 @@ A lightweight, real-time context window and token usage monitor custom-built for
 ### 🌟 核心功能
 
 - **⚡ 输入框原生嵌入**：无缝融入 Antigravity 2.0 底部工具栏（麦克风图标正前方），丝滑契合原生暗色与明色主题。
-- **🎨 350px 悬浮大卡片（鼠标悬停即弹）**：
-  - **动态模型与真实上限感知**：实时捕获当前选用的模型（如 `Gemini 4 Hydrogen High · 1M 上限`、`Claude Opus 5.5 · 1M 上限`、`GPT-OSS 120B · 128k 上限`），自动切换刻度尺与上限。
-  - **自动压缩阈值标线**：在进度条上直观标出 Antigravity 实际的 Checkpointer 自动压缩触发线（如 `512k` / `256k` / `128k` / `80k`），并实时提示“距触发压缩还剩多少空间”。
-  - **三色呼吸警示灯**：🟢 极度充裕 ｜ 🟡 接近压缩线 ｜ 🔴 即将压缩。
-  - **三核心指标网格**：物理剩余空间、累计交互步数、模型状态。
-  - **阶段健康建议**：精准的阶段性总结与 `/compact` 压缩提示，同时支持通过对话 Skill 输出带 `│` 压缩标线的 Markdown 进度条卡片。
+- **🎨 360px 悬浮大卡片（鼠标悬停即弹）**：
+  - **五维上下文分类与分段彩色进度条**：将当前上下文实时拆解为 **系统提示词** (`#6366f1`)、**工具及子智能体** (`#10b981`)、**对话消息** (`#f59e0b`)、**连接器及MCP** (`#8b5cf6`) 与 **技能** (`#ec4899`) 五大类，结合 `transcript_full.jsonl` 与本地规则/MCP/技能元数据精准校准占比。
+  - **动态模型与真实上限感知**：实时捕获当前选用的模型（如 `Gemini 4 Hydrogen 高 · 1M`、`Claude Opus 5.5 · 1M`、`GPT-OSS 120B · 128k`），自动切换刻度尺与上限。
+  - **自动压缩阈值标线**：在分段进度条上直观标出 Antigravity 实际的 Checkpointer 自动压缩触发线（如 `512k` / `256k` / `128k` / `80k`），并实时提示压缩线位置与剩余余量。
+  - **精简融合底栏与放大字号**：将 **交互步数** 与三色动态 **压缩建议**（🟢 充裕 ｜ 🟡 接近压缩 ｜ 🔴 即将压缩）融合为同一底栏卡片，全面精简文案并放大字号；对话内 Markdown 卡片同样支持五维分类占比与 `│` 压缩标线。
 
 #### 支持模型窗口与自动压缩阈值对照
 
@@ -140,6 +138,7 @@ antigravity-context-monitor/
 │   └── context-monitor/
 │       ├── SKILL.md         # Antigravity 技能元数据
 │       └── scripts/
+│           ├── context_breakdown.py # 五维上下文拆解与日志精准解析模块
 │           ├── daemon_sync.py       # 后台热探测、动态计算与 DOM 驱动引擎
 │           ├── generate_monitor.py  # 会话容量分析与 Markdown 卡片生成器
 │           └── inject_gauge.py      # CDP 前端组件注入脚本
