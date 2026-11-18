@@ -12,7 +12,7 @@ except ImportError:
     except Exception as e:
         sys.exit(1)
 
-PLUGIN_DIR = Path(__file__).resolve().parent.parent.parent
+PLUGIN_DIR = Path(__file__).resolve().parents[3]
 LOG_FILE = PLUGIN_DIR / "daemon.log"
 
 def log(msg):
@@ -37,6 +37,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 LOCK_PORT = 38291
 try:
     _lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    _lock_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
         _lock_socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
     _lock_socket.bind(('127.0.0.1', LOCK_PORT))
@@ -46,9 +47,25 @@ except socket.error as e:
     log(f"Another instance is running (port {LOCK_PORT} busy): {e}. Exiting.")
     sys.exit(0)
 
+def find_port_file():
+    candidates = [
+        Path.home() / "Library" / "Application Support" / "Antigravity" / "DevToolsActivePort",
+        Path(os.environ.get("APPDATA", "")) / "Antigravity" / "DevToolsActivePort",
+        Path.home() / "AppData" / "Roaming" / "Antigravity" / "DevToolsActivePort",
+        Path.home() / ".config" / "Antigravity" / "DevToolsActivePort",
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Antigravity" / "DevToolsActivePort"
+    elif sys.platform == "win32":
+        return Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))) / "Antigravity" / "DevToolsActivePort"
+    return Path.home() / ".config" / "Antigravity" / "DevToolsActivePort"
+
 # Path-agnostic dynamic paths
 BRAIN_DIR = Path.home() / ".gemini" / "antigravity" / "brain"
-PORT_FILE = Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))) / "Antigravity" / "DevToolsActivePort"
+PORT_FILE = find_port_file()
 
 stats_cache = {}
 
@@ -58,7 +75,31 @@ def estimate_tokens(text):
     cn = len(re.findall(r'[\u4e00-\u9fff]', text))
     return int(cn / 1.5 + (len(text) - cn) / 3.8)
 
-def compute_conv_stats(conv_id):
+
+def get_model_limit(model_name):
+    m = (model_name or "").lower()
+    if "gpt-oss" in m or "oss-120b" in m:
+        return 131_072, "128k", "64k", "128k", 80_000
+    if "flash-image" in m or "flash image" in m:
+        return 65_536, "64k", "32k", "64k", None
+    if "claude" in m:
+        if any(v in m for v in ["5.5", "5."]):
+            return 1_000_000, "1M", "500k", "1,000k (1M)", 256_000
+        return 200_000, "200k", "100k", "200k", 160_000
+    if any(k in m for k in ["gpt-4", "o1", "o3", "o4"]):
+        return 200_000, "200k", "100k", "200k", 160_000
+    if "pro" in m and "1.5" in m:
+        return 2_097_152, "2M", "1M", "2M", 512_000
+    if any(k in m for k in ["gemini 4", "gemini-4", "hydrogen", "argon", "carbon"]):
+        return 1_048_576, "1,048k", "524k", "1,048k", 512_000
+    if "3.8" in m:
+        return 1_048_576, "1,048k", "524k", "1,048k", 256_000
+    if "gemini" in m:
+        return 1_048_576, "1,048k", "524k", "1,048k", 128_000
+    return 1_000_000, "1M", "500k", "1,000k (1M)", 512_000
+
+def compute_conv_stats(conv_id, model_name=None):
+    max_tokens, limit_label, tick_mid, tick_max, compact_limit = get_model_limit(model_name)
     if not conv_id or conv_id == "new":
         pct = 0.0
         steps = 0
@@ -76,7 +117,7 @@ def compute_conv_stats(conv_id):
         else:
             mtime = p.stat().st_mtime
             cached = stats_cache.get(conv_id)
-            if cached and cached.get("mtime") == mtime:
+            if cached and cached.get("mtime") == mtime and cached.get("model_name") == model_name:
                 return cached["stats"]
                 
             steps = 0
@@ -126,8 +167,13 @@ def compute_conv_stats(conv_id):
                                    estimate_tokens(str(step_data.get("tool_calls", ""))))
             except Exception:
                 pass
-            pct = min(100.0, round((tokens / 1_000_000) * 100, 2))
+            pct = min(100.0, round((tokens / max_tokens) * 100, 2))
             
+    compact_pct = round((compact_limit / max_tokens) * 100, 2) if compact_limit else None
+    compact_label = f"{compact_limit // 1000}k" if compact_limit else None
+    compact_rem_k = max(0, (compact_limit - tokens) // 1000) if compact_limit else None
+    compact_ratio = (tokens / compact_limit) if compact_limit else (pct / 100.0)
+
     # Calculate health levels and compact bilingual strings
     if not conv_id or conv_id == "new":
         badge_color = "emerald"
@@ -137,34 +183,42 @@ def compute_conv_stats(conv_id):
         model_health_en = "Optimal"
         advice_zh = "全新空白会话，上下文容量 100% 充裕。"
         advice_en = "Brand new session. 100% context capacity available."
-    elif pct < 60:
+    elif compact_ratio < 0.70:
         badge_color = "emerald"
         health_zh = "🟢 极度充裕"
         health_en = "🟢 Optimal"
         model_health_zh = "极佳"
         model_health_en = "Optimal"
         if is_compacted:
-            advice_zh = f"已完成上下文压缩，当前仅占用 {pct}%，余量充足。"
-            advice_en = f"Context compacted. Currently using {pct}% with ample headroom."
+            advice_zh = f"已完成上下文压缩，当前占用 {pct}%，余量充足。"
+            advice_en = f"Context compacted. {pct}% used with ample headroom."
         else:
             advice_zh = f"当前仅占用 {pct}%，余量充足，无需压缩。"
             advice_en = f"Only {pct}% used. Ample headroom, no compression needed."
-    elif pct < 85:
+    elif compact_ratio < 0.92:
         badge_color = "amber"
-        health_zh = "🟡 容量适中"
-        health_en = "🟡 Moderate"
+        health_zh = "🟡 接近压缩线"
+        health_en = "🟡 Near Compact"
         model_health_zh = "良好"
-        model_health_en = "Normal"
-        advice_zh = f"已占用 {pct}%，在完成当前任务后可做阶段性总结。"
-        advice_en = f"{pct}% consumed. Consider summarizing once current task finishes."
+        model_health_en = "Notice"
+        if compact_label:
+            advice_zh = f"已占用 {pct}%，距自动压缩线 ({compact_label}) 约剩 {compact_rem_k}k。"
+            advice_en = f"{pct}% used (~{compact_rem_k}k left before {compact_label} auto-compact)."
+        else:
+            advice_zh = f"已占用 {pct}%，在完成当前任务后可做阶段性总结。"
+            advice_en = f"{pct}% consumed. Consider summarizing once current task finishes."
     else:
         badge_color = "rose"
-        health_zh = "🔴 容量偏高"
-        health_en = "🔴 High Load"
+        health_zh = "🔴 即将压缩"
+        health_en = "🔴 Compact Soon"
         model_health_zh = "需关注"
         model_health_en = "High"
-        advice_zh = f"已占用 {pct}%，接近上限，建议开启新会话或输入 /compact。"
-        advice_en = f"{pct}% consumed (near limit). Recommended to start a new chat or run /compact."
+        if compact_label:
+            advice_zh = f"已接近/达到自动压缩阈值 ({compact_label})，即将触发摘要压缩或可手动 /compact。"
+            advice_en = f"Near/at {compact_label} auto-compact threshold. Auto-summary imminent or run /compact."
+        else:
+            advice_zh = f"已占用 {pct}%，接近上限，建议开启新会话或输入 /compact。"
+            advice_en = f"{pct}% consumed (near limit). Recommended to start a new chat or run /compact."
         
     res = {
         "conv_id": conv_id,
@@ -173,36 +227,49 @@ def compute_conv_stats(conv_id):
         "is_compacted": is_compacted,
         "tokens": tokens,
         "percentage": pct,
+        "max_tokens": max_tokens,
+        "compact_limit": compact_limit,
+        "compact_pct": compact_pct,
+        "compact_label": compact_label,
+        "compact_rem_k": compact_rem_k,
+        "tick_mid": tick_mid,
+        "tick_max": tick_max,
         "badge_color": badge_color,
         "i18n": {
             "zh": {
                 "title": "上下文监控",
                 "consumed_label": "已消耗:",
-                "remaining_label": "剩余空间",
+                "remaining_label": "物理剩余",
                 "steps_label": "累计交互",
                 "health_label": "模型状态",
                 "steps_unit": "步",
                 "model_health": model_health_zh,
                 "health_badge": health_zh,
                 "advice": advice_zh,
-                "max_suffix": "1M 上限"
+                "max_suffix": f"{limit_label} 上限",
+                "compact_prefix": f"自动压缩阈值: {compact_label}" if compact_label else "",
+                "compact_rem_text": f"距压缩 > {compact_rem_k}k" if compact_rem_k is not None else "",
+                "compact_tooltip": f"Antigravity 自动压缩上限: {compact_label} (触发 Checkpointer)" if compact_label else ""
             },
             "en": {
                 "title": "Context Monitor",
                 "consumed_label": "Used:",
-                "remaining_label": "Remaining",
+                "remaining_label": "Physical Left",
                 "steps_label": "Steps",
                 "health_label": "Status",
                 "steps_unit": "",
                 "model_health": model_health_en,
                 "health_badge": health_en,
                 "advice": advice_en,
-                "max_suffix": "1M Max"
+                "max_suffix": f"{limit_label} Max",
+                "compact_prefix": f"Auto-compact: {compact_label}" if compact_label else "",
+                "compact_rem_text": f"> {compact_rem_k}k left" if compact_rem_k is not None else "",
+                "compact_tooltip": f"Antigravity auto-compact limit: {compact_label}" if compact_label else ""
             }
         }
     }
     if conv_id and conv_id != "new":
-        stats_cache[conv_id] = {"mtime": mtime, "stats": res}
+        stats_cache[conv_id] = {"mtime": mtime, "model_name": model_name, "stats": res}
     return res
 
 SETUP_JS = """
@@ -233,10 +300,11 @@ SETUP_JS = """
         if (!micContainer || !micContainer.parentElement || micContainer.closest('nav, aside, [class*="sidebar"]')) return false;
 
         let root = document.getElementById("antigravity-context-gauge-root");
-        if (!root || !document.body.contains(root) || root.parentElement !== micContainer.parentElement) {
+        if (!root || !document.body.contains(root) || root.parentElement !== micContainer.parentElement || root.dataset.version !== "1.4.0") {
             if (root) root.remove();
             root = document.createElement("div");
             root.id = "antigravity-context-gauge-root";
+            root.dataset.version = "1.4.0";
             root.className = "relative flex items-center select-none mr-2";
             root.innerHTML = `
                 <button id="ag-ctx-badge-btn" type="button" class="group flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-all duration-150 cursor-pointer outline-none border border-neutral-200 dark:border-neutral-700 shadow-sm">
@@ -252,13 +320,13 @@ SETUP_JS = """
         }
 
         let popup = document.getElementById("ag-ctx-popup");
-        if (!popup || !document.body.contains(popup)) {
+        if (!popup || !document.body.contains(popup) || popup.dataset.version !== "1.4.0") {
             if (popup) popup.remove();
             
             const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
             const initTitle = isZh ? "上下文监控" : "Context Monitor";
             const initConsumed = isZh ? "已消耗:" : "Used:";
-            const initRemaining = isZh ? "剩余空间" : "Remaining";
+            const initRemaining = isZh ? "物理剩余" : "Physical Left";
             const initSteps = isZh ? "累计交互" : "Steps";
             const initHealth = isZh ? "模型状态" : "Status";
             const initStatus = isZh ? "🟢 极度充裕" : "🟢 Optimal";
@@ -266,6 +334,7 @@ SETUP_JS = """
 
             popup = document.createElement("div");
             popup.id = "ag-ctx-popup";
+            popup.dataset.version = "1.4.0";
             popup.style.cssText = "position: fixed !important; width: 350px !important; min-width: 350px !important; max-width: 350px !important; box-sizing: border-box !important; z-index: 999999 !important; transition: opacity 0.18s ease, transform 0.18s ease;";
             popup.className = "p-4 rounded-2xl bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-[0_16px_48px_rgba(0,0,0,0.22)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.7)] border border-neutral-200 dark:border-neutral-800 opacity-0 pointer-events-none translate-y-2";
             popup.innerHTML = `
@@ -283,21 +352,33 @@ SETUP_JS = """
                 </div>
 
                 <div style="margin-top:12px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:6px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:7px;">
                         <span style="color:#777;"><span id="ag-pop-consumed-label">${initConsumed}</span> <strong style="color:var(--foreground, #111); font-family:monospace;" id="ag-pop-tokens">~0 Tokens</strong></span>
                         <span style="font-family:monospace; font-weight:700; color:#10b981;" id="ag-pop-pct">0.0%</span>
                     </div>
-                    <div style="width:100%; height:8px; background:rgba(150,150,150,0.15); border-radius:999px; overflow:hidden; padding:1px; border:1px solid rgba(150,150,150,0.2);">
-                        <div id="ag-pop-bar" style="height:100%; width:0%; background:linear-gradient(90deg, #10b981, #14b8a6); border-radius:999px; transition:width 0.4s ease;"></div>
+                    <div style="position:relative; width:100%;">
+                        <div style="width:100%; height:8px; background:rgba(150,150,150,0.15); border-radius:999px; overflow:hidden; padding:1px; border:1px solid rgba(150,150,150,0.2);">
+                            <div id="ag-pop-bar" style="height:100%; width:0%; background:linear-gradient(90deg, #10b981, #14b8a6); border-radius:999px; transition:width 0.4s ease;"></div>
+                        </div>
+                        <div id="ag-pop-compact-marker" style="display:none; position:absolute; top:-2px; bottom:-2px; left:48.8%; width:2px; background:#f59e0b; border-radius:2px; box-shadow:0 0 6px rgba(245,158,11,0.85); cursor:help; transform:translateX(-50%); z-index:2;" title="">
+                            <div style="position:absolute; top:-4px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:3.5px solid transparent; border-right:3.5px solid transparent; border-top:4px solid #f59e0b;"></div>
+                        </div>
                     </div>
                     <div style="display:flex; justify-content:space-between; font-size:9px; color:#888; font-family:monospace; margin-top:4px;">
                         <span>0k</span>
-                        <span>500k</span>
-                        <span>1,000k (1M)</span>
+                        <span id="ag-pop-tick-mid">524k</span>
+                        <span id="ag-pop-tick-max">1,048k</span>
+                    </div>
+                    <div id="ag-pop-compact-row" style="display:none; align-items:center; justify-content:space-between; font-size:9.5px; color:#d97706; margin-top:5px; padding:3px 7px; border-radius:6px; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.22);">
+                        <span style="display:flex; align-items:center; gap:5px;">
+                            <span style="display:inline-block; width:2px; height:9px; background:#f59e0b; border-radius:1px;"></span>
+                            <span id="ag-pop-compact-label">自动压缩阈值: 512k</span>
+                        </span>
+                        <span id="ag-pop-compact-rem" style="font-family:monospace; font-weight:600;"></span>
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:12px; padding-top:10px; border-top:1px solid rgba(150,150,150,0.15); text-align:center;">
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:10px; padding-top:10px; border-top:1px solid rgba(150,150,150,0.15); text-align:center;">
                     <div style="padding:6px 4px; border-radius:8px; background:rgba(150,150,150,0.06); border:1px solid rgba(150,150,150,0.12); overflow:hidden;">
                         <div id="ag-pop-rem-label" style="font-size:9px; color:#888; white-space:nowrap;">${initRemaining}</div>
                         <div id="ag-pop-rem" style="font-size:12px; font-weight:700; font-family:monospace; color:#10b981; margin-top:2px;">> 1000k</div>
@@ -324,25 +405,31 @@ SETUP_JS = """
         if (badgeBtn && !badgeBtn.dataset.bound) {
             badgeBtn.dataset.bound = "true";
             let timer;
-            badgeBtn.addEventListener("mouseenter", () => {
-                clearTimeout(timer);
-                const rect = badgeBtn.getBoundingClientRect();
-                popup.style.bottom = (window.innerHeight - rect.top + 8) + "px";
-                popup.style.right = (window.innerWidth - rect.right) + "px";
-                popup.classList.remove("opacity-0", "pointer-events-none", "translate-y-2");
-                popup.classList.add("opacity-100", "pointer-events-auto", "translate-y-0");
-            });
-
+            const getPop = () => document.getElementById("ag-ctx-popup");
             const hideHandler = () => {
                 timer = setTimeout(() => {
-                    popup.classList.add("opacity-0", "pointer-events-none", "translate-y-2");
-                    popup.classList.remove("opacity-100", "pointer-events-auto", "translate-y-0");
+                    const p = getPop();
+                    if (!p) return;
+                    p.classList.add("opacity-0", "pointer-events-none", "translate-y-2");
+                    p.classList.remove("opacity-100", "pointer-events-auto", "translate-y-0");
                 }, 120);
             };
-
+            badgeBtn.addEventListener("mouseenter", () => {
+                clearTimeout(timer);
+                const p = getPop();
+                if (!p) return;
+                const rect = badgeBtn.getBoundingClientRect();
+                p.style.bottom = (window.innerHeight - rect.top + 8) + "px";
+                p.style.right = (window.innerWidth - rect.right) + "px";
+                p.classList.remove("opacity-0", "pointer-events-none", "translate-y-2");
+                p.classList.add("opacity-100", "pointer-events-auto", "translate-y-0");
+                if (!p.dataset.bound) {
+                    p.dataset.bound = "true";
+                    p.addEventListener("mouseenter", () => clearTimeout(timer));
+                    p.addEventListener("mouseleave", hideHandler);
+                }
+            });
             badgeBtn.addEventListener("mouseleave", hideHandler);
-            popup.addEventListener("mouseenter", () => clearTimeout(timer));
-            popup.addEventListener("mouseleave", hideHandler);
         }
         return true;
     };
@@ -375,16 +462,50 @@ SETUP_JS = """
         if (popTokens) popTokens.innerText = "~" + Number(stats.tokens).toLocaleString() + " Tokens";
 
         let popPct = document.getElementById("ag-pop-pct");
-        if (popPct) popPct.innerText = stats.percentage + "%";
+        if (popPct) {
+            popPct.innerText = stats.percentage + "%";
+            popPct.style.color = stats.badge_color === "rose" ? "#f43f5e" :
+                                 stats.badge_color === "amber" ? "#f59e0b" : "#10b981";
+        }
 
         let popBar = document.getElementById("ag-pop-bar");
-        if (popBar) popBar.style.width = Math.max(1.5, stats.percentage) + "%";
+        if (popBar) {
+            popBar.style.width = Math.max(1.5, stats.percentage) + "%";
+            popBar.style.background = stats.badge_color === "rose" ? "linear-gradient(90deg, #f59e0b, #f43f5e)" :
+                                      stats.badge_color === "amber" ? "linear-gradient(90deg, #10b981, #f59e0b)" :
+                                      "linear-gradient(90deg, #10b981, #14b8a6)";
+        }
+
+        let marker = document.getElementById("ag-pop-compact-marker");
+        let compactRow = document.getElementById("ag-pop-compact-row");
+        let compactLabel = document.getElementById("ag-pop-compact-label");
+        let compactRem = document.getElementById("ag-pop-compact-rem");
+        if (stats.compact_pct && stats.compact_pct > 0 && stats.compact_pct < 100) {
+            if (marker) {
+                marker.style.display = "block";
+                marker.style.left = stats.compact_pct + "%";
+                if (t.compact_tooltip) marker.title = t.compact_tooltip;
+            }
+            if (compactRow) compactRow.style.display = "flex";
+            if (compactLabel && t.compact_prefix) compactLabel.innerText = t.compact_prefix;
+            if (compactRem && t.compact_rem_text) compactRem.innerText = t.compact_rem_text;
+        } else {
+            if (marker) marker.style.display = "none";
+            if (compactRow) compactRow.style.display = "none";
+        }
 
         let popRemLabel = document.getElementById("ag-pop-rem-label");
         if (popRemLabel && t.remaining_label) popRemLabel.innerText = t.remaining_label;
 
         let popRem = document.getElementById("ag-pop-rem");
-        if (popRem) popRem.innerText = "> " + Math.max(0, Math.floor((1000000 - stats.tokens)/1000)) + "k";
+        if (popRem) {
+            let maxT = stats.max_tokens || 1000000;
+            popRem.innerText = "> " + Math.max(0, Math.floor((maxT - stats.tokens) / 1000)) + "k";
+        }
+        let tickMid = document.getElementById("ag-pop-tick-mid");
+        let tickMax = document.getElementById("ag-pop-tick-max");
+        if (tickMid && stats.tick_mid) tickMid.innerText = stats.tick_mid;
+        if (tickMax && stats.tick_max) tickMax.innerText = stats.tick_max;
 
         let popStepsLabel = document.getElementById("ag-pop-steps-label");
         if (popStepsLabel && t.steps_label) popStepsLabel.innerText = t.steps_label;
@@ -444,6 +565,9 @@ SETUP_JS = """
 """
 
 def get_active_target():
+    global PORT_FILE
+    if not PORT_FILE or not PORT_FILE.exists():
+        PORT_FILE = find_port_file()
     if not PORT_FILE.exists():
         return None
     try:
@@ -490,7 +614,10 @@ async def cdp_eval(ws, expr, req_id):
             msg = await asyncio.wait_for(ws.recv(), timeout=4.0)
             data = json.loads(msg)
             if data.get("id") == req_id:
-                return data.get("result", {}).get("result", {}).get("value")
+                res = data.get("result", {})
+                if "exceptionDetails" in res:
+                    log(f"CDP JS Exception: {res['exceptionDetails']}")
+                return res.get("result", {}).get("value")
     except Exception:
         pass
     return None
@@ -540,10 +667,22 @@ async def run_sync_loop(iterations=None):
                     
                     # 4. Read current model name from DOM
                     req_counter += 1
-                    model_name = await cdp_eval(ws, "document.querySelector('[data-testid*=\"model\"]')?.innerText || document.querySelector('[aria-label*=\"model\"]')?.innerText || ''", req_counter)
+                    model_js = """
+                    (() => {
+                        let btn = document.querySelector('button[aria-label*="Select model"], button[aria-label*="选择模型"]');
+                        if (btn) return btn.innerText.trim();
+                        let candidates = Array.from(document.querySelectorAll('button[aria-label*="model" i], button[data-testid*="model" i]'));
+                        for (let c of candidates) {
+                            let aria = (c.getAttribute("aria-label") || "").toLowerCase();
+                            if (aria.includes("select") || aria.includes("current")) return c.innerText.trim();
+                        }
+                        return "";
+                    })()
+                    """
+                    model_name = await cdp_eval(ws, model_js, req_counter)
                     
                     # 5. Compute and push stats
-                    stats = compute_conv_stats(conv_id)
+                    stats = compute_conv_stats(conv_id, model_name)
                     if model_name and str(model_name).strip():
                         stats["model_name"] = str(model_name).strip()
                     update_expr = f"window.__updateAntigravityGauge({json.dumps(stats, ensure_ascii=False)});"

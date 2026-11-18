@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/Antigravity-2.0%20Desktop-blue?style=flat-square" alt="Antigravity 2.0" />
   <img src="https://img.shields.io/badge/Language-Bilingual%20(ZH%20%7C%20EN)-emerald?style=flat-square" alt="Bilingual" />
   <img src="https://img.shields.io/badge/Python-3.9+-yellow?style=flat-square" alt="Python 3.9+" />
-  <img src="https://img.shields.io/badge/Platform-Windows-informational?style=flat-square" alt="Windows" />
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-informational?style=flat-square" alt="Windows & macOS" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License" />
 </p>
 
@@ -29,38 +29,38 @@ A lightweight, real-time context window and token usage monitor custom-built for
 
 - **⚡ Native Input Bar Integration**: Injects seamlessly into the bottom input toolbar without modifying any Antigravity application binaries.
 - **🎨 350px Floating Dashboard (Hover to Expand)**:
-  - **Dynamic Model Name**: Reads active model in real-time (e.g., `Gemini 3.8 Flash High · 1M Max` / `Claude Sonnet 4.6 (Thinking)`).
-  - **Color-Coded Status Pulse**: 🟢 Optimal (<60%) ｜ 🟡 Moderate (60%~85%) ｜ 🔴 High Load (>85%).
-  - **3 Metric Blocks**: Remaining tokens (`> 798k`), interaction steps (`772`), and health status (`Optimal`).
-  - **Smooth Gradient Progress Bar**: Visualizes token progression across 0 ~ 1,000k (1M).
+  - **Dynamic Model & Limit Detection**: Reads active model in real-time (e.g., `Gemini 4 Hydrogen High · 1,048k`, `Claude Opus 5.5 · 1M`, `GPT-OSS 120B · 128k`) and adapts progress scale automatically.
+  - **Auto-Compact Threshold Marker**: Highlights Antigravity's actual Checkpointer auto-compaction trigger line (`512k` / `256k` / `128k` / `80k`) directly on the progress bar along with remaining headroom before compaction.
+  - **Color-Coded Status Pulse**: 🟢 Optimal ｜ 🟡 Near Auto-Compact ｜ 🔴 Compact Soon.
+  - **3 Metric Blocks**: Remaining physical space, interaction steps, and health status.
   - **Context Advice**: Provides timely tips for summarizing or running `/compact`.
 - **🌐 Automatic Bilingual Selection**:
   - Automatically identifies system language. If Chinese (`zh`) -> Chinese UI; if non-Chinese -> English UI.
   - Engineered with strict layout constraints to prevent English text overflow, line breaks, or font misalignment.
-- **🛡️ Auto-Reconnection & Zero-Crash Resilience**:
-  - **Dynamic Port Hot-Discovery**: Continuously detects `%APPDATA%\Antigravity\DevToolsActivePort` to re-hook instantly whenever Antigravity restarts with a new ephemeral port.
+- **🛡️ Cross-Platform Auto-Reconnection & Zero-Crash Resilience**:
+  - **Dynamic Port Hot-Discovery**: Automatically locates `DevToolsActivePort` across macOS (`~/Library/Application Support/Antigravity/`), Windows (`%APPDATA%\Antigravity\`), and Linux (`~/.config/Antigravity/`) to re-hook within 2s after client restarts.
   - **DOM Self-Healing**: Uses `MutationObserver` to re-mount the gauge automatically whenever the input container re-renders or navigates.
-  - **Triple Persistence**: Integrates with Antigravity Sidecars, Windows Startup Registry, and Startup Folder for completely silent, background startup on reboot.
+  - **System Persistence**: Integrates with Antigravity Sidecars, macOS `LaunchAgent`, and Windows Startup Registry/Folder for silent background startup on reboot.
 
 ---
 
 ### 🚀 Quick Start (1-Click Install)
 
 #### Requirements
-- **Google Antigravity 2.0 Desktop**
-- **Python 3.9+** (ensure `Add python.exe to PATH` was selected during installation)
+- **Google Antigravity 2.0 Desktop** (Windows or macOS)
+- **Python 3.9+**
 
 #### Installation
 1. Clone or download this repository:
    ```bash
    git clone https://github.com/wwwljxw/antigravity-context-monitor.git
    ```
-2. Double-click **`install.bat`** (or run `python install.py`).
-3. Launch or restart **Antigravity 2.0**.
-4. The context gauge will immediately appear in your input box!
+2. Run **`python3 install.py`** (or double-click **`install.bat`** on Windows).
+3. Launch or restart **Antigravity 2.0** (on macOS, the gauge also mounts live immediately!).
+4. The context gauge will appear in your bottom input toolbar!
 
 #### Uninstallation
-- Double-click **`uninstall.bat`** (or run `python uninstall.py`) to cleanly terminate the background daemon and remove all configuration entries.
+- Run **`python3 uninstall.py`** (or double-click **`uninstall.bat`** on Windows) to cleanly terminate the background daemon and remove all configuration entries.
 
 ---
 
@@ -73,38 +73,38 @@ A lightweight, real-time context window and token usage monitor custom-built for
 
 - **⚡ 输入框原生嵌入**：无缝融入 Antigravity 2.0 底部工具栏（麦克风图标正前方），丝滑契合原生暗色与明色主题。
 - **🎨 350px 悬浮大卡片（鼠标悬停即弹）**：
-  - **实时模型名称感知**：动态捕获当前会话选用的模型（如 `Gemini 3.8 Flash High · 1M 上限` / `Claude Sonnet 4.6 (Thinking)`）。
-  - **三色呼吸警示灯**：🟢 极度充裕 (<60%) ｜ 🟡 容量适中 (60%~85%) ｜ 🔴 容量偏高 (>85%)。
-  - **三核心指标网格**：剩余可用空间 (`> 798k`)、累计交互步数 (`772`)、模型状态 (`极佳`)。
-  - **全景渐变进度条**：直观展示 0 ~ 1,000k (1M) 上下文消耗进展。
-  - **阶段健康建议**：提供精准的阶段性总结与 `/compact` 压缩提示。
+  - **动态模型与真实上限感知**：实时捕获当前选用的模型（如 `Gemini 4 Hydrogen High · 1,048k`、`Claude Opus 5.5 · 1M`、`GPT-OSS 120B · 128k`），自动切换刻度尺与上限。
+  - **自动压缩阈值标线**：在进度条上直观标出 Antigravity 实际的 Checkpointer 自动压缩触发线（如 `512k` / `256k` / `128k` / `80k`），并实时提示“距触发压缩还剩多少空间”。
+  - **三色呼吸警示灯**：🟢 极度充裕 ｜ 🟡 接近压缩线 ｜ 🔴 即将压缩。
+  - **三核心指标网格**：物理剩余空间、累计交互步数、模型状态。
+  - **阶段健康建议**：精准的阶段性总结与 `/compact` 压缩提示。
 - **🌐 中英双语自动切换（非中文 ➡️ 英文）**：
   - 自动读取系统语言：中文环境直接显示中文，非中文环境（英文等）自动呈现为地道的英文排版。
   - 针对英文字符较长特点进行了专门的防溢出重构，绝不发生折行、错位或内容截断。
-- **🛡️ 动态端口热重连与全方位常驻**：
-  - **动态端口热感知**：自动监听 `%APPDATA%\Antigravity\DevToolsActivePort`，Antigravity 重启更换随机端口后 2 秒内无缝热重连。
-  - **DOM 自动挂载**：内置 `MutationObserver`，切换会话、页面 `Ctrl+R` 刷新或重新输入时自动重绘自愈。
-  - **三重系统级守护**：同时支持 Antigravity Sidecar、Windows 注册表 `Run` 自启以及启动文件夹双保险，开机完全静默运行，内存消耗仅约 20MB，CPU 占用近乎 0%。
+- **🛡️ 跨平台动态端口热重连与常驻守护**：
+  - **动态端口热感知**：自动探测 macOS (`~/Library/Application Support/Antigravity/`)、Windows (`%APPDATA%\Antigravity\`) 与 Linux (`~/.config/Antigravity/`) 下的 `DevToolsActivePort`，客户端重启后 2 秒内无缝热重连。
+  - **DOM 自动挂载**：内置 `MutationObserver`，切换会话、页面刷新或版本升级时自动重建自愈。
+  - **系统级守护**：同时支持 Antigravity Sidecar、macOS `LaunchAgent`、Windows 注册表 `Run` 自启与启动文件夹，开机完全静默运行，内存消耗约 20MB，CPU 占用近乎 0%。
 
 ---
 
 ### 🚀 一键安装与使用
 
 #### 前置环境
-- 已安装 **Antigravity 2.0 桌面版**
-- 已安装 **Python 3.9+**（安装时勾选了 `Add python.exe to PATH`）
+- 已安装 **Antigravity 2.0 桌面版**（支持 Windows / macOS）
+- 已安装 **Python 3.9+**
 
 #### 安装步骤
 1. 下载或克隆本项目：
    ```bash
    git clone https://github.com/wwwljxw/antigravity-context-monitor.git
    ```
-2. 双击项目根目录下的 **`install.bat`**（或直接运行 `python install.py`）。
-3. 打开或重启 **Antigravity 2.0**。
+2. 运行 **`python3 install.py`**（Windows 可直接双击 **`install.bat`**）。
+3. 打开或重启 **Antigravity 2.0**（macOS 安装后当前会话即可实时生效）。
 4. 输入框右下角即可看到呼吸跳动的小胶囊，鼠标悬停即可浮出仪表盘！
 
 #### 卸载步骤
-- 双击 **`uninstall.bat`**（或运行 `python uninstall.py`）即可一键彻底停止进程并清理所有文件和自启项。
+- 运行 **`python3 uninstall.py`**（Windows 可双击 **`uninstall.bat`**）即可一键彻底停止进程并清理所有文件和自启项。
 
 ---
 

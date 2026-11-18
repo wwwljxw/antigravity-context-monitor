@@ -1,9 +1,25 @@
-import os, urllib.request, json, asyncio, websockets
+import os, sys, urllib.request, json, asyncio, websockets
 from pathlib import Path
+
+def find_port_file():
+    candidates = [
+        Path.home() / "Library" / "Application Support" / "Antigravity" / "DevToolsActivePort",
+        Path(os.environ.get("APPDATA", "")) / "Antigravity" / "DevToolsActivePort",
+        Path.home() / "AppData" / "Roaming" / "Antigravity" / "DevToolsActivePort",
+        Path.home() / ".config" / "Antigravity" / "DevToolsActivePort",
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Antigravity" / "DevToolsActivePort"
+    elif sys.platform == "win32":
+        return Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))) / "Antigravity" / "DevToolsActivePort"
+    return Path.home() / ".config" / "Antigravity" / "DevToolsActivePort"
 
 async def inject():
     try:
-        port_file = Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))) / "Antigravity" / "DevToolsActivePort"
+        port_file = find_port_file()
         if not port_file.exists():
             print("DevToolsActivePort not found. Is Antigravity running?")
             return False

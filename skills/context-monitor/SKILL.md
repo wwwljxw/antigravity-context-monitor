@@ -10,6 +10,7 @@ description: Monitor conversation context window capacity, token usage, and rend
 ## 执行步骤
 
 1. 运行生成脚本：
-   `python "%USERPROFILE%\.gemini\config\plugins\context-monitor\skills\context-monitor\scripts\generate_monitor.py"`
+   - macOS / Linux: `python3 ~/.gemini/config/plugins/context-monitor/skills/context-monitor/scripts/generate_monitor.py`
+   - Windows: `python "%USERPROFILE%\.gemini\config\plugins\context-monitor\skills\context-monitor\scripts\generate_monitor.py"`
 2. 读取脚本输出 JSON 结果中的 `markdown_card`。
 3. 直接将该 Markdown 进度条卡片渲染在回复正文中，确保无需跳转、直接在当前聊天气泡内嵌入显示。
