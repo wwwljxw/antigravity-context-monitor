@@ -37,9 +37,10 @@ if hasattr(sys.stdout, 'reconfigure'):
 LOCK_PORT = 38291
 try:
     _lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    _lock_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
         _lock_socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        _lock_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     _lock_socket.bind(('127.0.0.1', LOCK_PORT))
     _lock_socket.listen(1)
     log("Acquired single-instance lock on port 38291")
