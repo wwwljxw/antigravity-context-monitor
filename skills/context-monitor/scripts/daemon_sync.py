@@ -115,48 +115,40 @@ def compute_conv_stats(conv_id, model_name=None):
     # Calculate health levels and compact bilingual strings
     if not conv_id or conv_id == "new":
         badge_color = "emerald"
-        health_zh = "🟢 全新会话"
-        health_en = "🟢 New Session"
-        model_health_zh = "极佳"
-        model_health_en = "Optimal"
-        advice_zh = "全新空白会话，上下文容量 100% 充裕。"
-        advice_en = "Brand new session. 100% context capacity available."
+        health_zh = "🟢 新会话"
+        health_en = "🟢 New"
+        advice_zh = "空白会话，容量 100% 充裕"
+        advice_en = "Blank session, 100% free"
     elif compact_ratio < 0.70:
         badge_color = "emerald"
-        health_zh = "🟢 极度充裕"
+        health_zh = "🟢 充裕"
         health_en = "🟢 Optimal"
-        model_health_zh = "极佳"
-        model_health_en = "Optimal"
         if is_compacted:
-            advice_zh = f"已完成上下文压缩，当前占用 {pct}%，余量充足。"
-            advice_en = f"Context compacted. {pct}% used with ample headroom."
+            advice_zh = f"已压缩（占用 {pct}%），余量充足"
+            advice_en = f"Compacted ({pct}% used), ample room"
         else:
-            advice_zh = f"当前仅占用 {pct}%，余量充足，无需压缩。"
-            advice_en = f"Only {pct}% used. Ample headroom, no compression needed."
+            advice_zh = f"余量充足（占用 {pct}%），无需压缩"
+            advice_en = f"Ample room ({pct}% used)"
     elif compact_ratio < 0.92:
         badge_color = "amber"
-        health_zh = "🟡 接近压缩线"
-        health_en = "🟡 Near Compact"
-        model_health_zh = "良好"
-        model_health_en = "Notice"
+        health_zh = "🟡 接近压缩"
+        health_en = "🟡 Near Limit"
         if compact_label:
-            advice_zh = f"已占用 {pct}%，距自动压缩线 ({compact_label}) 约剩 {compact_rem_k}k。"
-            advice_en = f"{pct}% used (~{compact_rem_k}k left before {compact_label} auto-compact)."
+            advice_zh = f"距 {compact_label} 压缩线约剩 {compact_rem_k}k，建议总结"
+            advice_en = f"~{compact_rem_k}k to {compact_label} compact, summarize soon"
         else:
-            advice_zh = f"已占用 {pct}%，在完成当前任务后可做阶段性总结。"
-            advice_en = f"{pct}% consumed. Consider summarizing once current task finishes."
+            advice_zh = f"已用 {pct}%，任务收尾可做总结"
+            advice_en = f"{pct}% used, wrap up soon"
     else:
         badge_color = "rose"
         health_zh = "🔴 即将压缩"
         health_en = "🔴 Compact Soon"
-        model_health_zh = "需关注"
-        model_health_en = "High"
         if compact_label:
-            advice_zh = f"已接近/达到自动压缩阈值 ({compact_label})，即将触发摘要压缩或可手动 /compact。"
-            advice_en = f"Near/at {compact_label} auto-compact threshold. Auto-summary imminent or run /compact."
+            advice_zh = f"即将触及 {compact_label} 压缩线，建议 /compact"
+            advice_en = f"Near {compact_label} compact, run /compact"
         else:
-            advice_zh = f"已占用 {pct}%，接近上限，建议开启新会话或输入 /compact。"
-            advice_en = f"{pct}% consumed (near limit). Recommended to start a new chat or run /compact."
+            advice_zh = f"接近上限（{pct}%），建议 /compact"
+            advice_en = f"Near limit ({pct}%), run /compact"
         
     res = {
         "conv_id": conv_id,
@@ -177,35 +169,29 @@ def compute_conv_stats(conv_id, model_name=None):
         "i18n": {
             "zh": {
                 "title": "上下文监控",
-                "consumed_label": "已消耗:",
-                "remaining_label": "物理剩余",
-                "steps_label": "交互步数",
-                "footer_title": "💡 压缩建议",
-                "health_label": "模型状态",
+                "consumed_label": "已用",
+                "steps_label": "交互",
+                "footer_title": "💡 建议",
                 "steps_unit": "步",
-                "model_health": model_health_zh,
                 "health_badge": health_zh,
                 "advice": advice_zh,
-                "max_suffix": f"{limit_label} 上限",
-                "compact_prefix": f"自动压缩阈值: {compact_label}" if compact_label else "",
-                "compact_rem_text": f"距压缩 > {compact_rem_k}k" if compact_rem_k is not None else "",
-                "compact_tooltip": f"Antigravity 自动压缩上限: {compact_label} (触发 Checkpointer)" if compact_label else ""
+                "max_suffix": f"{limit_label}",
+                "compact_prefix": f"压缩线 {compact_label}" if compact_label else "",
+                "compact_rem_text": f"剩 {compact_rem_k}k" if compact_rem_k is not None else "",
+                "compact_tooltip": f"自动压缩阈值: {compact_label}" if compact_label else ""
             },
             "en": {
                 "title": "Context Monitor",
-                "consumed_label": "Used:",
-                "remaining_label": "Physical Left",
+                "consumed_label": "Used",
                 "steps_label": "Steps",
                 "footer_title": "💡 Advice",
-                "health_label": "Status",
                 "steps_unit": "",
-                "model_health": model_health_en,
                 "health_badge": health_en,
                 "advice": advice_en,
-                "max_suffix": f"{limit_label} Max",
-                "compact_prefix": f"Auto-compact: {compact_label}" if compact_label else "",
-                "compact_rem_text": f"> {compact_rem_k}k left" if compact_rem_k is not None else "",
-                "compact_tooltip": f"Antigravity auto-compact limit: {compact_label}" if compact_label else ""
+                "max_suffix": f"{limit_label}",
+                "compact_prefix": f"Compact {compact_label}" if compact_label else "",
+                "compact_rem_text": f"{compact_rem_k}k left" if compact_rem_k is not None else "",
+                "compact_tooltip": f"Auto-compact limit: {compact_label}" if compact_label else ""
             }
         }
     }
@@ -239,11 +225,11 @@ SETUP_JS = """
         if (!micContainer || !micContainer.parentElement || micContainer.closest('nav, aside, [class*="sidebar"]')) return false;
 
         let root = document.getElementById("antigravity-context-gauge-root");
-        if (!root || !document.body.contains(root) || root.parentElement !== micContainer.parentElement || root.dataset.version !== "1.5.1") {
+        if (!root || !document.body.contains(root) || root.parentElement !== micContainer.parentElement || root.dataset.version !== "1.5.2") {
             if (root) root.remove();
             root = document.createElement("div");
             root.id = "antigravity-context-gauge-root";
-            root.dataset.version = "1.5.1";
+            root.dataset.version = "1.5.2";
             root.className = "relative flex items-center select-none mr-2";
             root.innerHTML = `
                 <button id="ag-ctx-badge-btn" type="button" class="group flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-all duration-150 cursor-pointer outline-none border border-neutral-200 dark:border-neutral-700 shadow-sm">
@@ -259,16 +245,16 @@ SETUP_JS = """
         }
 
         let popup = document.getElementById("ag-ctx-popup");
-        if (!popup || !document.body.contains(popup) || popup.dataset.version !== "1.5.1") {
+        if (!popup || !document.body.contains(popup) || popup.dataset.version !== "1.5.2") {
             if (popup) popup.remove();
             
             const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
             const initTitle = isZh ? "上下文监控" : "Context Monitor";
-            const initConsumed = isZh ? "已消耗:" : "Used:";
-            const initSteps = isZh ? "交互步数" : "Steps";
-            const initFooterTitle = isZh ? "💡 压缩建议" : "💡 Advice";
-            const initStatus = isZh ? "🟢 极度充裕" : "🟢 Optimal";
-            const initAdvice = isZh ? "全新空白会话，上下文容量 100% 充裕。" : "Brand new session. 100% context capacity available.";
+            const initConsumed = isZh ? "已用" : "Used";
+            const initSteps = isZh ? "交互" : "Steps";
+            const initFooterTitle = isZh ? "💡 建议" : "💡 Advice";
+            const initStatus = isZh ? "🟢 充裕" : "🟢 Optimal";
+            const initAdvice = isZh ? "空白会话，容量 100% 充裕" : "Blank session, 100% free";
             const initCats = [
                 { key: "system", color: "#6366f1", label: isZh ? "系统提示词" : "System Prompt" },
                 { key: "tools", color: "#10b981", label: isZh ? "工具及子智能体" : "Tools & Subagents" },
@@ -278,41 +264,41 @@ SETUP_JS = """
             ];
             const segsHtml = initCats.map(c => `<div id="ag-seg-${c.key}" style="display:none; height:100%; width:0%; min-width:3px; background:${c.color}; border-radius:2px; transition:width 0.35s ease;"></div>`).join("");
             const rowsHtml = initCats.map(c => `
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; line-height:1.35;">
-                    <span style="display:flex; align-items:center; gap:7px; min-width:0;">
-                        <span style="display:inline-block; width:7px; height:7px; border-radius:999px; background:${c.color}; flex-shrink:0;"></span>
-                        <span id="ag-cat-label-${c.key}" style="color:var(--foreground, #333); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${c.label}</span>
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px; line-height:1.4;">
+                    <span style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <span style="display:inline-block; width:8px; height:8px; border-radius:999px; background:${c.color}; flex-shrink:0;"></span>
+                        <span id="ag-cat-label-${c.key}" style="color:var(--foreground, #222); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${c.label}</span>
                     </span>
-                    <span style="display:flex; align-items:center; gap:8px; font-family:monospace; flex-shrink:0;">
-                        <span id="ag-cat-tok-${c.key}" style="font-size:10px; color:#888;">0</span>
-                        <span id="ag-cat-pct-${c.key}" style="font-size:11px; font-weight:600; min-width:36px; text-align:right; color:var(--foreground, #222);">0.0%</span>
+                    <span style="display:flex; align-items:center; gap:10px; font-family:monospace; flex-shrink:0;">
+                        <span id="ag-cat-tok-${c.key}" style="font-size:11.5px; color:#888;">0</span>
+                        <span id="ag-cat-pct-${c.key}" style="font-size:12.5px; font-weight:700; min-width:42px; text-align:right; color:var(--foreground, #222);">0.0%</span>
                     </span>
                 </div>
             `).join("");
 
             popup = document.createElement("div");
             popup.id = "ag-ctx-popup";
-            popup.dataset.version = "1.5.1";
-            popup.style.cssText = "position: fixed !important; width: 350px !important; min-width: 350px !important; max-width: 350px !important; box-sizing: border-box !important; z-index: 999999 !important; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity 0.18s ease, transform 0.18s ease;";
+            popup.dataset.version = "1.5.2";
+            popup.style.cssText = "position: fixed !important; width: 360px !important; min-width: 360px !important; max-width: 360px !important; box-sizing: border-box !important; z-index: 999999 !important; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity 0.18s ease, transform 0.18s ease;";
             popup.className = "p-4 rounded-2xl bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-[0_16px_48px_rgba(0,0,0,0.22)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.7)] border border-neutral-200 dark:border-neutral-800 opacity-0 pointer-events-none translate-y-2";
             popup.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(150,150,150,0.15);">
-                    <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; margin-right:10px;">
-                        <span style="font-size:18px; flex-shrink:0;">🧠</span>
+                    <div style="display:flex; align-items:center; gap:9px; min-width:0; flex:1; margin-right:10px;">
+                        <span style="font-size:20px; flex-shrink:0;">🧠</span>
                         <div style="min-width:0; flex:1;">
-                            <div id="ag-pop-title" style="font-size:12px; font-weight:700; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${initTitle}</div>
-                            <div id="ag-pop-model" style="font-size:10px; color:#888; font-family:monospace; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Antigravity Model</div>
+                            <div id="ag-pop-title" style="font-size:14px; font-weight:700; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${initTitle}</div>
+                            <div id="ag-pop-model" style="font-size:11.5px; color:#888; font-family:monospace; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Antigravity Model</div>
                         </div>
                     </div>
-                    <span id="ag-pop-badge" style="font-size:10px; font-weight:600; padding:2px 8px; border-radius:999px; background:rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.25); white-space:nowrap; flex-shrink:0;">
+                    <span id="ag-pop-badge" style="font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:999px; background:rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.25); white-space:nowrap; flex-shrink:0;">
                         ${initStatus}
                     </span>
                 </div>
 
                 <div style="margin-top:11px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:7px;">
-                        <span style="color:#777;"><span id="ag-pop-consumed-label">${initConsumed}</span> <strong style="color:var(--foreground, #111); font-family:monospace;" id="ag-pop-tokens">~0 Tokens</strong></span>
-                        <span style="font-family:monospace; font-weight:700; color:#10b981;" id="ag-pop-pct">0.0%</span>
+                    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px;">
+                        <span style="font-size:13px; color:#777;"><span id="ag-pop-consumed-label">${initConsumed}</span> <strong style="color:var(--foreground, #111); font-family:monospace;" id="ag-pop-tokens">0 / 1M</strong></span>
+                        <span style="font-family:monospace; font-size:16px; font-weight:700; color:#10b981;" id="ag-pop-pct">0.0%</span>
                     </div>
                     <div style="position:relative; width:100%;">
                         <div style="display:flex; align-items:center; gap:1.5px; width:100%; height:9px; background:rgba(150,150,150,0.15); border-radius:999px; overflow:hidden; padding:1px; border:1px solid rgba(150,150,150,0.2);">
@@ -322,32 +308,32 @@ SETUP_JS = """
                             <div style="position:absolute; top:-4px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:3.5px solid transparent; border-right:3.5px solid transparent; border-top:4px solid #f59e0b;"></div>
                         </div>
                     </div>
-                    <div style="display:flex; justify-content:space-between; font-size:9px; color:#888; font-family:monospace; margin-top:4px;">
+                    <div style="display:flex; justify-content:space-between; font-size:10.5px; color:#888; font-family:monospace; margin-top:4px;">
                         <span>0k</span>
                         <span id="ag-pop-tick-mid">524k</span>
                         <span id="ag-pop-tick-max">1,048k</span>
                     </div>
-                    <div id="ag-pop-compact-row" style="display:none; align-items:center; justify-content:space-between; font-size:9.5px; color:#d97706; margin-top:5px; padding:3px 7px; border-radius:6px; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.22);">
-                        <span style="display:flex; align-items:center; gap:5px;">
-                            <span style="display:inline-block; width:2px; height:9px; background:#f59e0b; border-radius:1px;"></span>
-                            <span id="ag-pop-compact-label">自动压缩阈值: 512k</span>
+                    <div id="ag-pop-compact-row" style="display:none; align-items:center; justify-content:space-between; font-size:11.5px; color:#d97706; margin-top:6px; padding:4px 8px; border-radius:7px; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.22);">
+                        <span style="display:flex; align-items:center; gap:6px;">
+                            <span style="display:inline-block; width:2.5px; height:11px; background:#f59e0b; border-radius:1px;"></span>
+                            <span id="ag-pop-compact-label">压缩线 512k</span>
                         </span>
                         <span id="ag-pop-compact-rem" style="font-family:monospace; font-weight:600;"></span>
                     </div>
                 </div>
 
-                <div id="ag-pop-breakdown" style="display:flex; flex-direction:column; gap:5px; margin-top:9px; padding-top:8px; border-top:1px solid rgba(150,150,150,0.15);">
+                <div id="ag-pop-breakdown" style="display:flex; flex-direction:column; gap:6px; margin-top:10px; padding-top:9px; border-top:1px solid rgba(150,150,150,0.15);">
                     ${rowsHtml}
                 </div>
 
-                <div id="ag-pop-footer" style="margin-top:9px; padding:8px 10px; border-radius:10px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2);">
-                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; margin-bottom:5px; padding-bottom:5px; border-bottom:1px solid rgba(150,150,150,0.12);">
-                        <span id="ag-pop-footer-title" style="font-weight:600; color:#10b981;">${initFooterTitle}</span>
-                        <span style="font-family:monospace; color:#777; white-space:nowrap;">
-                            <span id="ag-pop-steps-label">${initSteps}</span>: <strong id="ag-pop-steps" style="color:var(--foreground, #111);">0</strong>
+                <div id="ag-pop-footer" style="margin-top:10px; padding:9px 11px; border-radius:10px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:5px; padding-bottom:5px; border-bottom:1px solid rgba(150,150,150,0.12);">
+                        <span id="ag-pop-footer-title" style="font-weight:700; color:#10b981;">${initFooterTitle}</span>
+                        <span style="font-family:monospace; font-size:11.5px; color:#777; white-space:nowrap;">
+                            <span id="ag-pop-steps-label">${initSteps}</span> <strong id="ag-pop-steps" style="color:var(--foreground, #111);">0</strong>
                         </span>
                     </div>
-                    <div id="ag-pop-advice" style="font-size:10px; line-height:1.45; color:var(--foreground, #111);">${initAdvice}</div>
+                    <div id="ag-pop-advice" style="font-size:12px; line-height:1.45; color:var(--foreground, #111);">${initAdvice}</div>
                 </div>
             `;
             document.body.appendChild(popup);
@@ -417,7 +403,11 @@ SETUP_JS = """
         if (popConsumed && t.consumed_label) popConsumed.innerText = t.consumed_label;
 
         let popTokens = document.getElementById("ag-pop-tokens");
-        if (popTokens) popTokens.innerText = "~" + Number(stats.tokens).toLocaleString() + " Tokens";
+        if (popTokens) {
+            const usedStr = stats.tokens >= 1000 ? (stats.tokens / 1000).toFixed(1) + "k" : String(stats.tokens);
+            const maxStr = stats.tick_max || "1M";
+            popTokens.innerText = `${usedStr} / ${maxStr}`;
+        }
 
         let popPct = document.getElementById("ag-pop-pct");
         if (popPct) {
@@ -442,7 +432,7 @@ SETUP_JS = """
                 const lbl = document.getElementById("ag-cat-label-" + b.key);
                 if (lbl) lbl.innerText = isZh ? b.label_zh : b.label_en;
                 const tok = document.getElementById("ag-cat-tok-" + b.key);
-                if (tok) tok.innerText = "~" + b.tokens_k;
+                if (tok) tok.innerText = b.tokens_k;
                 const pctEl = document.getElementById("ag-cat-pct-" + b.key);
                 if (pctEl) pctEl.innerText = Number(b.pct).toFixed(1) + "%";
             }
