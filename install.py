@@ -125,7 +125,7 @@ def main():
     shutil.copy2(src_skills / "SKILL.md", skills_global_target / "SKILL.md")
     shutil.copy2(src_skills / "SKILL.md", skills_agents_target / "SKILL.md")
 
-    for script_name in ["daemon_sync.py", "generate_monitor.py", "inject_gauge.py"]:
+    for script_name in ["daemon_sync.py", "generate_monitor.py", "inject_gauge.py", "context_breakdown.py"]:
         src_script = src_skills / "scripts" / script_name
         if src_script.exists():
             shutil.copy2(src_script, skills_plugin_target / "scripts" / script_name)

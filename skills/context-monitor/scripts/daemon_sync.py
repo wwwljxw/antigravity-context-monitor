@@ -1,6 +1,11 @@
 import sys, os, time, json, re, urllib.request, asyncio, socket, traceback
 from pathlib import Path
 
+SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+from context_breakdown import analyze_conversation, estimate_tokens
+
 # Auto-install websockets if missing on a new machine
 try:
     import websockets
@@ -70,13 +75,6 @@ PORT_FILE = find_port_file()
 
 stats_cache = {}
 
-def estimate_tokens(text):
-    if not text:
-        return 0
-    cn = len(re.findall(r'[\u4e00-\u9fff]', text))
-    return int(cn / 1.5 + (len(text) - cn) / 3.8)
-
-
 def get_model_limit(model_name):
     m = (model_name or "").lower()
     if "gpt-oss" in m or "oss-120b" in m:
@@ -101,74 +99,13 @@ def get_model_limit(model_name):
 
 def compute_conv_stats(conv_id, model_name=None):
     max_tokens, limit_label, tick_mid, tick_max, compact_limit = get_model_limit(model_name)
-    if not conv_id or conv_id == "new":
-        pct = 0.0
-        steps = 0
-        active_steps = 0
-        is_compacted = False
-        tokens = 0
-    else:
-        p = BRAIN_DIR / conv_id / ".system_generated" / "logs" / "transcript.jsonl"
-        if not p.exists():
-            pct = 0.0
-            steps = 0
-            active_steps = 0
-            is_compacted = False
-            tokens = 0
-        else:
-            mtime = p.stat().st_mtime
-            cached = stats_cache.get(conv_id)
-            if cached and cached.get("mtime") == mtime and cached.get("model_name") == model_name:
-                return cached["stats"]
-                
-            steps = 0
-            tokens = 0
-            is_compacted = False
-            active_steps = 0
-            try:
-                with open(p, "r", encoding="utf-8", errors="ignore") as f:
-                    lines = [json.loads(line) for line in f if line.strip()]
-                
-                steps = len(lines)
-                
-                # 寻找最近的 CHECKPOINT 截断点（/compact 或系统自动压缩产生）
-                latest_cp_idx = -1
-                for i in range(len(lines) - 1, -1, -1):
-                    if lines[i].get("type") == "CHECKPOINT":
-                        latest_cp_idx = i
-                        break
-                
-                is_compacted = (latest_cp_idx != -1)
-                active_start_idx = latest_cp_idx if is_compacted else 0
-                active_steps = steps - active_start_idx
-                
-                # 检查在活跃上下文区间中是否存在真实的 PLANNER_RESPONSE（包含模型实际消耗 Token）
-                last_pr_idx = -1
-                for i in range(len(lines) - 1, active_start_idx - 1, -1):
-                    if "input_tokens" in lines[i]:
-                        last_pr_idx = i
-                        break
-                        
-                BASE_SYSTEM_TOKENS = 18000  # 系统 Prompt + 工具规则常驻基线
-                
-                if last_pr_idx != -1:
-                    pr_data = lines[last_pr_idx]
-                    tokens = pr_data.get("input_tokens", 0) + pr_data.get("cache_read_tokens", 0)
-                    for i in range(last_pr_idx + 1, len(lines)):
-                        step_data = lines[i]
-                        tokens += (estimate_tokens(str(step_data.get("content", ""))) +
-                                   estimate_tokens(str(step_data.get("thinking", ""))) +
-                                   estimate_tokens(str(step_data.get("tool_calls", ""))))
-                else:
-                    tokens = BASE_SYSTEM_TOKENS
-                    for i in range(active_start_idx, len(lines)):
-                        step_data = lines[i]
-                        tokens += (estimate_tokens(str(step_data.get("content", ""))) +
-                                   estimate_tokens(str(step_data.get("thinking", ""))) +
-                                   estimate_tokens(str(step_data.get("tool_calls", ""))))
-            except Exception:
-                pass
-            pct = min(100.0, round((tokens / max_tokens) * 100, 2))
+    analysis = analyze_conversation(conv_id, max_tokens)
+    tokens = analysis["tokens"]
+    steps = analysis["steps"]
+    active_steps = analysis["active_steps"]
+    is_compacted = analysis["is_compacted"]
+    breakdown = analysis["breakdown"]
+    pct = min(100.0, round((tokens / max_tokens) * 100, 2)) if tokens > 0 else 0.0
             
     compact_pct = round((compact_limit / max_tokens) * 100, 2) if compact_limit else None
     compact_label = f"{compact_limit // 1000}k" if compact_limit else None
@@ -236,6 +173,7 @@ def compute_conv_stats(conv_id, model_name=None):
         "tick_mid": tick_mid,
         "tick_max": tick_max,
         "badge_color": badge_color,
+        "breakdown": breakdown,
         "i18n": {
             "zh": {
                 "title": "上下文监控",
@@ -269,8 +207,6 @@ def compute_conv_stats(conv_id, model_name=None):
             }
         }
     }
-    if conv_id and conv_id != "new":
-        stats_cache[conv_id] = {"mtime": mtime, "model_name": model_name, "stats": res}
     return res
 
 SETUP_JS = """
@@ -301,11 +237,11 @@ SETUP_JS = """
         if (!micContainer || !micContainer.parentElement || micContainer.closest('nav, aside, [class*="sidebar"]')) return false;
 
         let root = document.getElementById("antigravity-context-gauge-root");
-        if (!root || !document.body.contains(root) || root.parentElement !== micContainer.parentElement || root.dataset.version !== "1.4.0") {
+        if (!root || !document.body.contains(root) || root.parentElement !== micContainer.parentElement || root.dataset.version !== "1.5.0") {
             if (root) root.remove();
             root = document.createElement("div");
             root.id = "antigravity-context-gauge-root";
-            root.dataset.version = "1.4.0";
+            root.dataset.version = "1.5.0";
             root.className = "relative flex items-center select-none mr-2";
             root.innerHTML = `
                 <button id="ag-ctx-badge-btn" type="button" class="group flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-all duration-150 cursor-pointer outline-none border border-neutral-200 dark:border-neutral-700 shadow-sm">
@@ -321,7 +257,7 @@ SETUP_JS = """
         }
 
         let popup = document.getElementById("ag-ctx-popup");
-        if (!popup || !document.body.contains(popup) || popup.dataset.version !== "1.4.0") {
+        if (!popup || !document.body.contains(popup) || popup.dataset.version !== "1.5.0") {
             if (popup) popup.remove();
             
             const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
@@ -332,11 +268,31 @@ SETUP_JS = """
             const initHealth = isZh ? "模型状态" : "Status";
             const initStatus = isZh ? "🟢 极度充裕" : "🟢 Optimal";
             const initAdvice = isZh ? "全新空白会话，上下文容量 100% 充裕。" : "Brand new session. 100% context capacity available.";
+            const initCats = [
+                { key: "system", color: "#6366f1", label: isZh ? "系统提示词" : "System Prompt" },
+                { key: "tools", color: "#10b981", label: isZh ? "工具及子智能体" : "Tools & Subagents" },
+                { key: "messages", color: "#f59e0b", label: isZh ? "对话消息" : "Messages" },
+                { key: "mcp", color: "#8b5cf6", label: isZh ? "连接器及MCP" : "Connectors & MCP" },
+                { key: "skills", color: "#ec4899", label: isZh ? "技能" : "Skills" }
+            ];
+            const segsHtml = initCats.map(c => `<div id="ag-seg-${c.key}" style="display:none; height:100%; width:0%; min-width:3px; background:${c.color}; border-radius:2px; transition:width 0.35s ease;"></div>`).join("");
+            const rowsHtml = initCats.map(c => `
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; line-height:1.35;">
+                    <span style="display:flex; align-items:center; gap:7px; min-width:0;">
+                        <span style="display:inline-block; width:7px; height:7px; border-radius:999px; background:${c.color}; flex-shrink:0;"></span>
+                        <span id="ag-cat-label-${c.key}" style="color:var(--foreground, #333); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${c.label}</span>
+                    </span>
+                    <span style="display:flex; align-items:center; gap:8px; font-family:monospace; flex-shrink:0;">
+                        <span id="ag-cat-tok-${c.key}" style="font-size:10px; color:#888;">0</span>
+                        <span id="ag-cat-pct-${c.key}" style="font-size:11px; font-weight:600; min-width:36px; text-align:right; color:var(--foreground, #222);">0.0%</span>
+                    </span>
+                </div>
+            `).join("");
 
             popup = document.createElement("div");
             popup.id = "ag-ctx-popup";
-            popup.dataset.version = "1.4.0";
-            popup.style.cssText = "position: fixed !important; width: 350px !important; min-width: 350px !important; max-width: 350px !important; box-sizing: border-box !important; z-index: 999999 !important; transition: opacity 0.18s ease, transform 0.18s ease;";
+            popup.dataset.version = "1.5.0";
+            popup.style.cssText = "position: fixed !important; width: 350px !important; min-width: 350px !important; max-width: 350px !important; box-sizing: border-box !important; z-index: 999999 !important; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity 0.18s ease, transform 0.18s ease;";
             popup.className = "p-4 rounded-2xl bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-[0_16px_48px_rgba(0,0,0,0.22)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.7)] border border-neutral-200 dark:border-neutral-800 opacity-0 pointer-events-none translate-y-2";
             popup.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(150,150,150,0.15);">
@@ -352,14 +308,14 @@ SETUP_JS = """
                     </span>
                 </div>
 
-                <div style="margin-top:12px;">
+                <div style="margin-top:11px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:7px;">
                         <span style="color:#777;"><span id="ag-pop-consumed-label">${initConsumed}</span> <strong style="color:var(--foreground, #111); font-family:monospace;" id="ag-pop-tokens">~0 Tokens</strong></span>
                         <span style="font-family:monospace; font-weight:700; color:#10b981;" id="ag-pop-pct">0.0%</span>
                     </div>
                     <div style="position:relative; width:100%;">
-                        <div style="width:100%; height:8px; background:rgba(150,150,150,0.15); border-radius:999px; overflow:hidden; padding:1px; border:1px solid rgba(150,150,150,0.2);">
-                            <div id="ag-pop-bar" style="height:100%; width:0%; background:linear-gradient(90deg, #10b981, #14b8a6); border-radius:999px; transition:width 0.4s ease;"></div>
+                        <div style="display:flex; align-items:center; gap:1.5px; width:100%; height:9px; background:rgba(150,150,150,0.15); border-radius:999px; overflow:hidden; padding:1px; border:1px solid rgba(150,150,150,0.2);">
+                            ${segsHtml}
                         </div>
                         <div id="ag-pop-compact-marker" style="display:none; position:absolute; top:-2px; bottom:-2px; left:48.8%; width:2px; background:#f59e0b; border-radius:2px; box-shadow:0 0 6px rgba(245,158,11,0.85); cursor:help; transform:translateX(-50%); z-index:2;" title="">
                             <div style="position:absolute; top:-4px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:3.5px solid transparent; border-right:3.5px solid transparent; border-top:4px solid #f59e0b;"></div>
@@ -379,7 +335,11 @@ SETUP_JS = """
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:10px; padding-top:10px; border-top:1px solid rgba(150,150,150,0.15); text-align:center;">
+                <div id="ag-pop-breakdown" style="display:flex; flex-direction:column; gap:5px; margin-top:9px; padding-top:8px; border-top:1px solid rgba(150,150,150,0.15);">
+                    ${rowsHtml}
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:9px; padding-top:9px; border-top:1px solid rgba(150,150,150,0.15); text-align:center;">
                     <div style="padding:6px 4px; border-radius:8px; background:rgba(150,150,150,0.06); border:1px solid rgba(150,150,150,0.12); overflow:hidden;">
                         <div id="ag-pop-rem-label" style="font-size:9px; color:#888; white-space:nowrap;">${initRemaining}</div>
                         <div id="ag-pop-rem" style="font-size:12px; font-weight:700; font-family:monospace; color:#10b981; margin-top:2px;">> 1000k</div>
@@ -394,7 +354,7 @@ SETUP_JS = """
                     </div>
                 </div>
 
-                <div style="margin-top:10px; padding:8px 10px; border-radius:8px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); font-size:10px; line-height:1.45; display:flex; gap:6px; align-items:flex-start;">
+                <div style="margin-top:9px; padding:7px 10px; border-radius:8px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); font-size:10px; line-height:1.45; display:flex; gap:6px; align-items:flex-start;">
                     <span style="font-size:12px; flex-shrink:0;">💡</span>
                     <span id="ag-pop-advice" style="color:var(--foreground, #111);">${initAdvice}</span>
                 </div>
@@ -413,6 +373,9 @@ SETUP_JS = """
                     if (!p) return;
                     p.classList.add("opacity-0", "pointer-events-none", "translate-y-2");
                     p.classList.remove("opacity-100", "pointer-events-auto", "translate-y-0");
+                    p.style.opacity = "0";
+                    p.style.pointerEvents = "none";
+                    p.style.transform = "translateY(8px)";
                 }, 120);
             };
             badgeBtn.addEventListener("mouseenter", () => {
@@ -424,6 +387,9 @@ SETUP_JS = """
                 p.style.right = (window.innerWidth - rect.right) + "px";
                 p.classList.remove("opacity-0", "pointer-events-none", "translate-y-2");
                 p.classList.add("opacity-100", "pointer-events-auto", "translate-y-0");
+                p.style.opacity = "1";
+                p.style.pointerEvents = "auto";
+                p.style.transform = "translateY(0px)";
                 if (!p.dataset.bound) {
                     p.dataset.bound = "true";
                     p.addEventListener("mouseenter", () => clearTimeout(timer));
@@ -469,12 +435,26 @@ SETUP_JS = """
                                  stats.badge_color === "amber" ? "#f59e0b" : "#10b981";
         }
 
-        let popBar = document.getElementById("ag-pop-bar");
-        if (popBar) {
-            popBar.style.width = Math.max(1.5, stats.percentage) + "%";
-            popBar.style.background = stats.badge_color === "rose" ? "linear-gradient(90deg, #f59e0b, #f43f5e)" :
-                                      stats.badge_color === "amber" ? "linear-gradient(90deg, #10b981, #f59e0b)" :
-                                      "linear-gradient(90deg, #10b981, #14b8a6)";
+        if (Array.isArray(stats.breakdown)) {
+            for (const b of stats.breakdown) {
+                const seg = document.getElementById("ag-seg-" + b.key);
+                if (seg) {
+                    if (b.tokens > 0) {
+                        seg.style.display = "block";
+                        seg.style.width = b.bar_pct + "%";
+                        seg.title = (isZh ? b.label_zh : b.label_en) + ": ~" + b.tokens_k + " (" + b.pct.toFixed(1) + "%)";
+                    } else {
+                        seg.style.display = "none";
+                        seg.style.width = "0%";
+                    }
+                }
+                const lbl = document.getElementById("ag-cat-label-" + b.key);
+                if (lbl) lbl.innerText = isZh ? b.label_zh : b.label_en;
+                const tok = document.getElementById("ag-cat-tok-" + b.key);
+                if (tok) tok.innerText = "~" + b.tokens_k;
+                const pctEl = document.getElementById("ag-cat-pct-" + b.key);
+                if (pctEl) pctEl.innerText = Number(b.pct).toFixed(1) + "%";
+            }
         }
 
         let marker = document.getElementById("ag-pop-compact-marker");

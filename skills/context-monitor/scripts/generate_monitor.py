@@ -6,6 +6,11 @@ import sys
 import urllib.request
 from pathlib import Path
 
+SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+from context_breakdown import analyze_conversation
+
 if hasattr(sys.stdout, 'reconfigure'):
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -52,10 +57,15 @@ def get_active_model_from_cdp():
         port = int(port_file.read_text(encoding="utf-8").splitlines()[0].strip())
         req = urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=1.5)
         targets = json.loads(req.read().decode("utf-8"))
-        pages = [t for t in targets if t.get("type") == "page" and not t.get("url", "").startswith("devtools://")]
+        pages = [
+            t for t in targets
+            if t.get("type") == "page"
+            and not any(t.get("url", "").startswith(p) for p in ("devtools://", "data:", "chrome-extension://"))
+        ]
         if not pages:
             return None
-        ws_url = pages[0]["webSocketDebuggerUrl"]
+        preferred = [t for t in pages if "/c/" in t.get("url", "") or "Antigravity" in t.get("title", "")]
+        ws_url = (preferred[0] if preferred else pages[0])["webSocketDebuggerUrl"]
 
         async def _query():
             async with websockets.connect(ws_url, open_timeout=1.5, close_timeout=1) as ws:
@@ -193,71 +203,24 @@ def main():
         print(json.dumps({"error": "No active conversation found"}))
         return
 
-    conv_dir, transcript_path = active
-
-    steps = 0
-    total_tokens = 0
-    user_msgs = 0
-    model_msgs = 0
-    tool_calls = 0
-    is_compacted = False
-    active_steps = 0
-
-    try:
-        with open(transcript_path, "r", encoding="utf-8", errors="ignore") as f:
-            lines = [json.loads(line) for line in f if line.strip()]
-
-        steps = len(lines)
-        for data in lines:
-            msg_type = data.get("type", "")
-            if msg_type == "USER_INPUT":
-                user_msgs += 1
-            elif msg_type == "PLANNER_RESPONSE":
-                model_msgs += 1
-            t_calls = str(data.get("tool_calls", ""))
-            if t_calls and t_calls != "[]":
-                tool_calls += 1
-
-        latest_cp_idx = -1
-        for i in range(len(lines) - 1, -1, -1):
-            if lines[i].get("type") == "CHECKPOINT":
-                latest_cp_idx = i
-                break
-
-        is_compacted = (latest_cp_idx != -1)
-        active_start_idx = latest_cp_idx if is_compacted else 0
-        active_steps = steps - active_start_idx
-
-        last_pr_idx = -1
-        for i in range(len(lines) - 1, active_start_idx - 1, -1):
-            if "input_tokens" in lines[i]:
-                last_pr_idx = i
-                break
-
-        BASE_SYSTEM_TOKENS = 18000
-
-        if last_pr_idx != -1:
-            pr_data = lines[last_pr_idx]
-            total_tokens = pr_data.get("input_tokens", 0) + pr_data.get("cache_read_tokens", 0)
-            for i in range(last_pr_idx + 1, len(lines)):
-                step_data = lines[i]
-                total_tokens += (estimate_tokens(str(step_data.get("content", ""))) +
-                                 estimate_tokens(str(step_data.get("thinking", ""))) +
-                                 estimate_tokens(str(step_data.get("tool_calls", ""))))
-        else:
-            total_tokens = BASE_SYSTEM_TOKENS
-            for i in range(active_start_idx, len(lines)):
-                step_data = lines[i]
-                total_tokens += (estimate_tokens(str(step_data.get("content", ""))) +
-                                 estimate_tokens(str(step_data.get("thinking", ""))) +
-                                 estimate_tokens(str(step_data.get("tool_calls", ""))))
-    except Exception as e:
-        print(json.dumps({"error": str(e)}))
-        return
+    conv_dir, _ = active
 
     cli_model = sys.argv[1] if len(sys.argv) > 1 else None
     model_name = cli_model or get_active_model_from_cdp() or "Antigravity Model"
     max_tokens, limit_label, resolved_model, compact_limit = get_model_limit(model_name)
+
+    try:
+        analysis = analyze_conversation(conv_dir.name, max_tokens)
+        steps = analysis["steps"]
+        total_tokens = analysis["tokens"]
+        user_msgs = analysis["user_msgs"]
+        tool_calls = analysis["tool_calls"]
+        is_compacted = analysis["is_compacted"]
+        active_steps = analysis["active_steps"]
+        breakdown = analysis["breakdown"]
+    except Exception as e:
+        print(json.dumps({"error": str(e)}))
+        return
 
     percentage = min(100.0, round((total_tokens / max_tokens) * 100, 2))
     remaining_tokens = max(0, max_tokens - total_tokens)
@@ -295,9 +258,15 @@ def main():
     compact_line_zh = f"\n> ⚡ *自动压缩线 (`│`)：`{compact_label}`（距自动压缩还剩 **`> {compact_rem_k}k`**）*" if compact_label else ""
     compact_line_en = f"\n> ⚡ *Auto-compact line (`│`): `{compact_label}` (**`> {compact_rem_k}k`** left before compact)*" if compact_label else ""
 
+    cat_icons = {"system": "🔵", "tools": "🟢", "messages": "🟠", "mcp": "🟣", "skills": "🩷"}
+    bd_zh = " · ".join(f"{cat_icons.get(b['key'], '•')} **{b['label_zh']}** `{b['tokens_k']}` (**{b['pct']:.1f}%**)" for b in breakdown)
+    bd_en = " · ".join(f"{cat_icons.get(b['key'], '•')} **{b['label_en']}** `{b['tokens_k']}` (**{b['pct']:.1f}%**)" for b in breakdown)
+
     if zh:
         markdown_card = f"""> ### 🧠 上下文监控 ({resolved_model} · {limit_label} 物理上限)
 > `{progress_bar}` **`{percentage}%`** · {health_badge}{compact_line_zh}
+> 
+> 🧩 **上下文分类**：{bd_zh}
 > 
 > | 📊 活跃上下文 | 🚀 物理剩余 | 🔢 交互步数 | ⚙️ 工具调用 | 💬 对话轮数 |
 > | :--- | :--- | :--- | :--- | :--- |
@@ -307,6 +276,8 @@ def main():
     else:
         markdown_card = f"""> ### 🧠 Context Monitor ({resolved_model} · {limit_label} Physical Max)
 > `{progress_bar}` **`{percentage}%`** · {health_badge}{compact_line_en}
+> 
+> 🧩 **Breakdown**: {bd_en}
 > 
 > | 📊 Active Context | 🚀 Physical Left | 🔢 Steps | ⚙️ Tool Calls | 💬 Turns |
 > | :--- | :--- | :--- | :--- | :--- |
@@ -326,6 +297,7 @@ def main():
         "tokens": total_tokens,
         "percentage": percentage,
         "health_badge": health_badge,
+        "breakdown": breakdown,
         "markdown_card": markdown_card
     }
     print(json.dumps(result, ensure_ascii=False))
