@@ -91,11 +91,11 @@ def get_model_limit(model_name):
     if "pro" in m and "1.5" in m:
         return 2_097_152, "2M", "1M", "2M", 512_000
     if any(k in m for k in ["gemini 4", "gemini-4", "hydrogen", "argon", "carbon"]):
-        return 1_048_576, "1,048k", "524k", "1,048k", 512_000
+        return 1_048_576, "1M", "524k", "1,048k", 512_000
     if "3.8" in m:
-        return 1_048_576, "1,048k", "524k", "1,048k", 256_000
+        return 1_048_576, "1M", "524k", "1,048k", 256_000
     if "gemini" in m:
-        return 1_048_576, "1,048k", "524k", "1,048k", 128_000
+        return 1_048_576, "1M", "524k", "1,048k", 128_000
     return 1_000_000, "1M", "500k", "1,000k (1M)", 512_000
 
 def compute_conv_stats(conv_id, model_name=None):

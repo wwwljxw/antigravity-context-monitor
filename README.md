@@ -2,6 +2,7 @@
 ### Google Antigravity 上下文监控插件
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Version-v1.4.0-purple?style=flat-square" alt="Version v1.4.0" />
   <img src="https://img.shields.io/badge/Antigravity-2.0%20Desktop-blue?style=flat-square" alt="Antigravity 2.0" />
   <img src="https://img.shields.io/badge/Language-Bilingual%20(ZH%20%7C%20EN)-emerald?style=flat-square" alt="Bilingual" />
   <img src="https://img.shields.io/badge/Python-3.9+-yellow?style=flat-square" alt="Python 3.9+" />
@@ -29,11 +30,21 @@ A lightweight, real-time context window and token usage monitor custom-built for
 
 - **⚡ Native Input Bar Integration**: Injects seamlessly into the bottom input toolbar without modifying any Antigravity application binaries.
 - **🎨 350px Floating Dashboard (Hover to Expand)**:
-  - **Dynamic Model & Limit Detection**: Reads active model in real-time (e.g., `Gemini 4 Hydrogen High · 1,048k`, `Claude Opus 5.5 · 1M`, `GPT-OSS 120B · 128k`) and adapts progress scale automatically.
-  - **Auto-Compact Threshold Marker**: Highlights Antigravity's actual Checkpointer auto-compaction trigger line (`512k` / `256k` / `128k` / `80k`) directly on the progress bar along with remaining headroom before compaction.
+  - **Dynamic Model & Limit Detection**: Reads active model in real-time (e.g., `Gemini 4 Hydrogen High · 1M Max`, `Claude Opus 5.5 · 1M Max`, `GPT-OSS 120B · 128k Max`) and adapts the progress bar scale automatically.
+  - **Auto-Compact Threshold Marker**: Displays an amber marker on the progress bar showing Antigravity's actual Checkpointer auto-compaction trigger (`512k` / `256k` / `128k` / `80k`) and live remaining headroom before compaction.
   - **Color-Coded Status Pulse**: 🟢 Optimal ｜ 🟡 Near Auto-Compact ｜ 🔴 Compact Soon.
-  - **3 Metric Blocks**: Remaining physical space, interaction steps, and health status.
-  - **Context Advice**: Provides timely tips for summarizing or running `/compact`.
+  - **3 Metric Blocks**: Physical remaining space, interaction steps, and model status.
+  - **Context Advice**: Timely guidance for summarizing or running `/compact`, plus in-chat Markdown cards via `generate_monitor.py` with `│` threshold markers.
+
+#### Supported Model Limits & Auto-Compact Thresholds
+
+| Model Family | Physical Window | Auto-Compact Threshold |
+| :--- | :--- | :--- |
+| **Gemini 4 Hydrogen / Argon / Carbon** | `1,048k` (`1M`) | **`512k`** |
+| **Gemini 3.8 Flash** | `1,048k` (`1M`) | **`256k`** |
+| **Claude Opus 5.5 / Sonnet 5.5** | `1,000k` (`1M`) | **`256k`** |
+| **Gemini 3 Flash / 2.5 Pro / 3.5 Lite** | `1,048k` (`1M`) | **`128k`** |
+| **GPT-OSS 120B (Medium)** | `131k` (`128k`) | **`80k`** |
 - **🌐 Automatic Bilingual Selection**:
   - Automatically identifies system language. If Chinese (`zh`) -> Chinese UI; if non-Chinese -> English UI.
   - Engineered with strict layout constraints to prevent English text overflow, line breaks, or font misalignment.
@@ -73,11 +84,21 @@ A lightweight, real-time context window and token usage monitor custom-built for
 
 - **⚡ 输入框原生嵌入**：无缝融入 Antigravity 2.0 底部工具栏（麦克风图标正前方），丝滑契合原生暗色与明色主题。
 - **🎨 350px 悬浮大卡片（鼠标悬停即弹）**：
-  - **动态模型与真实上限感知**：实时捕获当前选用的模型（如 `Gemini 4 Hydrogen High · 1,048k`、`Claude Opus 5.5 · 1M`、`GPT-OSS 120B · 128k`），自动切换刻度尺与上限。
+  - **动态模型与真实上限感知**：实时捕获当前选用的模型（如 `Gemini 4 Hydrogen High · 1M 上限`、`Claude Opus 5.5 · 1M 上限`、`GPT-OSS 120B · 128k 上限`），自动切换刻度尺与上限。
   - **自动压缩阈值标线**：在进度条上直观标出 Antigravity 实际的 Checkpointer 自动压缩触发线（如 `512k` / `256k` / `128k` / `80k`），并实时提示“距触发压缩还剩多少空间”。
   - **三色呼吸警示灯**：🟢 极度充裕 ｜ 🟡 接近压缩线 ｜ 🔴 即将压缩。
   - **三核心指标网格**：物理剩余空间、累计交互步数、模型状态。
-  - **阶段健康建议**：精准的阶段性总结与 `/compact` 压缩提示。
+  - **阶段健康建议**：精准的阶段性总结与 `/compact` 压缩提示，同时支持通过对话 Skill 输出带 `│` 压缩标线的 Markdown 进度条卡片。
+
+#### 支持模型窗口与自动压缩阈值对照
+
+| 模型系列 | 物理窗口 (`maxTokens`) | 自动压缩阈值 (`max_token_limit`) |
+| :--- | :--- | :--- |
+| **Gemini 4 Hydrogen / Argon / Carbon** | `1,048k` (`1M`) | **`512k`** |
+| **Gemini 3.8 Flash** | `1,048k` (`1M`) | **`256k`** |
+| **Claude Opus 5.5 / Sonnet 5.5** | `1,000k` (`1M`) | **`256k`** |
+| **Gemini 3 Flash / 2.5 Pro / 3.5 Lite** | `1,048k` (`1M`) | **`128k`** |
+| **GPT-OSS 120B (Medium)** | `131k` (`128k`) | **`80k`** |
 - **🌐 中英双语自动切换（非中文 ➡️ 英文）**：
   - 自动读取系统语言：中文环境直接显示中文，非中文环境（英文等）自动呈现为地道的英文排版。
   - 针对英文字符较长特点进行了专门的防溢出重构，绝不发生折行、错位或内容截断。
